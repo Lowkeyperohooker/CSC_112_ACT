@@ -1,0 +1,7 @@
+Program  → Statement*
+Statement → Declaration | Assignment
+Declaration → int IDENTIFIER (= Expression)?;
+Assignment → IDENTIFIER = Expression ;
+Expression → Term ( (+|-) Term )*
+Term → Factor ( (*|/) Factor )*
+Factor → NUMBER | IDENTIFIER | ( Expression )
