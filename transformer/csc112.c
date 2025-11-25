@@ -884,7 +884,7 @@ void compile_program(const char* source_code, const char* output_filename) {
         display_errors();
         return;
     }
-    
+/*    
     // Show all tokens we found
     printf("Tokens found in program:\n");
     for (int i = 0; i < current_token_count; i++) {
@@ -892,7 +892,7 @@ void compile_program(const char* source_code, const char* output_filename) {
                get_token_type_name(all_tokens[i].type), 
                all_tokens[i].text, all_tokens[i].line_number);
     }
-    
+*/    
     // Step 2: Build program structure
     ASTNode* program_structure = parse_program();
     if (error_log.error_count || !program_structure) {
@@ -911,13 +911,13 @@ void compile_program(const char* source_code, const char* output_filename) {
         free_program_tree(program_structure);
         return;
     }
-
+/*
     // Show the program structure
     printf("\nProgram Structure:\n");
     display_program_structure(program_structure, 0);
     printf("\n");
     print_ast(program_structure, 0);
-    
+*/    
     // Step 4: Generate executable code
     FILE* output_file = fopen(output_filename, "w");
     if (!output_file) {
@@ -963,7 +963,7 @@ char* read_source_code() {
 
 // Program entry point
 int main() {
-    printf("Compiler by Kian and Charles\n");
+    printf("Submitted by Kian and Charles\n");
     
     char* source_code = read_source_code();
     if (!source_code) return 1;
