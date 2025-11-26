@@ -5,33 +5,28 @@
 #include <stdbool.h>
 #include <stdarg.h>
 
-// Let's set some reasonable limits for our compiler
 #define MAX_NAME_LENGTH 32
 #define MAX_TOKENS 1000
 #define MAX_SYMBOLS 100
 #define MAX_ERRORS 100
 
-// What types of tokens can we find in the code?
 typedef enum {
     END_OF_FILE, NUMBER, IDENTIFIER, PLUS, MINUS,
     MULTIPLY, DIVIDE, ASSIGN, SEMICOLON, LEFT_PAREN, 
     RIGHT_PAREN, INT_KEYWORD, UNKNOWN_TOKEN
 } TokenType;
 
-// How we represent pieces of our program structure
 typedef enum { 
     PROGRAM_NODE, ASSIGNMENT_NODE, VARIABLE_NODE, 
     NUMBER_NODE, OPERATION_NODE 
 } ASTNodeType;
 
-// A token is like a word in our language
 typedef struct {
     TokenType type;
     char text[MAX_NAME_LENGTH];
     int line_number;
 } Token;
 
-// We need to remember information about each variable
 typedef struct {
     char name[MAX_NAME_LENGTH];
     int is_initialized;
@@ -39,7 +34,6 @@ typedef struct {
     int memory_location;
 } Symbol;
 
-// This represents the structure of our program
 typedef struct ASTNode {
     ASTNodeType node_type;
     Token token_info;
@@ -47,19 +41,16 @@ typedef struct ASTNode {
     struct ASTNode *right_child;
 } ASTNode;
 
-// Keep track of any problems we find
 typedef struct {
     int error_count;
     char error_messages[MAX_ERRORS][256];
 } ErrorList;
 
-// We have a limited number of registers to work with
 typedef struct {
     const char* available_registers[32];
     int next_register_index;
 } RegisterPool;
 
-// Our global workspace
 Token all_tokens[MAX_TOKENS];
 int current_token_count = 0;
 int current_token_position = 0;
@@ -69,7 +60,6 @@ int next_memory_location = 0;
 ErrorList error_log = {0};
 RegisterPool register_pool = {0};
 
-// Let's define the instructions our computer understands with BINARY values
 typedef struct {
     const char* instruction_name;
     unsigned int opcode_value;
@@ -79,8 +69,8 @@ typedef struct {
 
 Instruction supported_instructions[] = {
     {"daddiu", 0b011001, 1, 0b000000},
-    {"dadd",   0b000000, 0, 0b101100},
-    {"dsub",   0b000000, 0, 0b101110},
+    {"daddu",   0b000000, 0, 0b101101},
+    {"dsubu",   0b000000, 0, 0b101111},
     {"dmult",  0b000000, 0, 0b011100},
     {"ddiv",   0b000000, 0, 0b011110},
     {"dmul",   0b011100, 0, 0b000010},
@@ -90,7 +80,6 @@ Instruction supported_instructions[] = {
     {"sb",     0b101000, 1, 0b000000},
 };
 
-// Find which instruction we're dealing with
 int find_instruction(const char* instruction_name) {
     int total_instructions = sizeof(supported_instructions) / sizeof(supported_instructions[0]);
     for (int i = 0; i < total_instructions; i++) {
@@ -101,7 +90,6 @@ int find_instruction(const char* instruction_name) {
     return -1;
 }
 
-// Convert human-readable instructions to machine code
 unsigned int create_instruction_code(const char* instruction_name, int source_reg, 
                                    int target_reg, int dest_reg, int immediate_value) {
     int instruction_index = find_instruction(instruction_name);
@@ -110,7 +98,6 @@ unsigned int create_instruction_code(const char* instruction_name, int source_re
     Instruction inst = supported_instructions[instruction_index];
     
     if (inst.instruction_format == 0) {
-        // R-type instructions (register operations)
         if (strcmp(instruction_name, "mflo") == 0 || strcmp(instruction_name, "mfhi") == 0) {
             return (inst.opcode_value << 26) | (dest_reg << 11) | inst.function_code;
         } else if (strcmp(instruction_name, "dmult") == 0 || strcmp(instruction_name, "ddiv") == 0) {
@@ -120,13 +107,11 @@ unsigned int create_instruction_code(const char* instruction_name, int source_re
                    (dest_reg << 11) | inst.function_code;
         }
     } else {
-        // I-type instructions (immediate values)
         return (inst.opcode_value << 26) | (source_reg << 21) | 
                (target_reg << 16) | (immediate_value & 0xFFFF);
     }
 }
 
-// Show the binary representation of our instructions
 void display_binary_code(unsigned int value, FILE* output) {
     for (int i = 31; i >= 0; i--) {
         fprintf(output, "%d", (value >> i) & 1);
@@ -134,7 +119,6 @@ void display_binary_code(unsigned int value, FILE* output) {
     }
 }
 
-// Generate both assembly and machine code
 void produce_machine_code(const char* instruction_name, int source_reg, int target_reg, 
                          int dest_reg, int immediate_value, FILE* output) {
     unsigned int machine_instruction = create_instruction_code(instruction_name, source_reg, 
@@ -147,7 +131,6 @@ void produce_machine_code(const char* instruction_name, int source_reg, int targ
     }
 }
 
-// Convert register names to numbers
 int get_register_number(const char* register_name) {
     if (register_name[0] == 'r' || register_name[0] == 'R') {
         if (register_name[1] != '\0') {
@@ -157,7 +140,6 @@ int get_register_number(const char* register_name) {
     return 0;
 }
 
-// Clean up our program structure
 void free_program_tree(ASTNode* node) {
     if (!node) return;
     free_program_tree(node->left_child);
@@ -165,13 +147,11 @@ void free_program_tree(ASTNode* node) {
     free(node);
 }
 
-// Record an error we found
 void record_error(int line_number, const char* message_format, ...) {
     if (error_log.error_count < MAX_ERRORS) {
         va_list args;
         va_start(args, message_format);
         vsnprintf(error_log.error_messages[error_log.error_count], 256, message_format, args);
-        // Add line number to error message
         snprintf(error_log.error_messages[error_log.error_count] + 
                 strlen(error_log.error_messages[error_log.error_count]), 
                 256 - strlen(error_log.error_messages[error_log.error_count]), 
@@ -181,7 +161,6 @@ void record_error(int line_number, const char* message_format, ...) {
     }
 }
 
-// Show all the errors we collected
 void display_errors() {
     for (int i = 0; i < error_log.error_count; i++) {
         fprintf(stderr, "Error: %s\n", error_log.error_messages[i]);
@@ -189,7 +168,6 @@ void display_errors() {
     }
 }
 
-// Set up our available registers
 void setup_registers() {
     const char* register_names[] = {
         "r1","r2","r3","r4","r5","r6","r7","r8",
@@ -207,23 +185,19 @@ void setup_registers() {
     register_pool.next_register_index = 0;
 }
 
-// Get a register to use
 const char* get_register() {
     return (register_pool.next_register_index < 32) ? 
            register_pool.available_registers[register_pool.next_register_index++] : "r1";
 }
 
-// Return a register when we're done with it
 void release_register() {
     if (register_pool.next_register_index > 0) register_pool.next_register_index--;
 }
 
-// Reset all registers for a new task
 void clear_registers() {
     register_pool.next_register_index = 0;
 }
 
-// Helper macros to understand characters
 bool IS_WHITESPACE(char c) {
     return ((c) == ' ' || (c) == '\t' || (c) == '\n' || (c) == '\r');
 }
@@ -240,12 +214,10 @@ bool IS_ALPHANUMERIC(char c) {
     return (IS_LETTER(c) || IS_DIGIT(c));
 }
 
-// Check if a word is a keyword
 TokenType identify_keyword(const char* word) {
     return strcmp(word, "int") == 0 ? INT_KEYWORD : IDENTIFIER;
 }
 
-// Save a token we found
 void save_token(TokenType type, const char* text_value, int line_number) {
     if (current_token_count < MAX_TOKENS) {
         all_tokens[current_token_count] = (Token){type, "", line_number};
@@ -256,15 +228,13 @@ void save_token(TokenType type, const char* text_value, int line_number) {
     }
 }
 
-// Skip spaces and comments
 void skip_spaces_and_comments(const char* source_code, int* position, int* current_line) {
     while (source_code[*position] != '\0') {
         if (IS_WHITESPACE(source_code[*position])) {
             if (source_code[*position] == '\n') (*current_line)++;
             (*position)++;
         } else if (source_code[*position] == '/' && source_code[*position + 1] == '/') {
-            // Skip single-line comments
-            *position += 2; // Skip the "//"
+            *position += 2;
             while (source_code[*position] != '\0' && source_code[*position] != '\n') {
                 (*position)++;
             }
@@ -273,13 +243,12 @@ void skip_spaces_and_comments(const char* source_code, int* position, int* curre
                 (*position)++;
             }
         } else if (source_code[*position] == '/' && source_code[*position + 1] == '*') {
-            // Skip block comments
-            *position += 2; // Skip the "/*"
+            *position += 2; 
             while (source_code[*position] != '\0') {
                 if (source_code[*position] == '\n') {
                     (*current_line)++;
                 } else if (source_code[*position] == '*' && source_code[*position + 1] == '/') {
-                    *position += 2; // Skip the "*/"
+                    *position += 2; 
                     break;
                 }
                 (*position)++;
@@ -290,7 +259,6 @@ void skip_spaces_and_comments(const char* source_code, int* position, int* curre
     }
 }
 
-// Break source code into meaningful tokens
 void break_into_tokens(const char* source_code) {
     int position = 0;
     int current_line = 1;
@@ -299,7 +267,6 @@ void break_into_tokens(const char* source_code) {
         skip_spaces_and_comments(source_code, &position, &current_line);
         if (source_code[position] == '\0') break;
         
-        // Found a number
         if (IS_DIGIT(source_code[position])) {
             char number_buffer[MAX_NAME_LENGTH] = {0};
             int buffer_index = 0;
@@ -311,7 +278,6 @@ void break_into_tokens(const char* source_code) {
             continue;
         }
         
-        // Found a word (identifier or keyword)
         if (IS_LETTER(source_code[position])) {
             char word_buffer[MAX_NAME_LENGTH] = {0};
             int buffer_index = 0;
@@ -323,7 +289,6 @@ void break_into_tokens(const char* source_code) {
             continue;
         }
         
-        // Handle symbols and operators
         switch (source_code[position]) {
             case '+': save_token(PLUS, "+", current_line); break;
             case '-': save_token(MINUS, "-", current_line); break;
@@ -342,7 +307,6 @@ void break_into_tokens(const char* source_code) {
     save_token(END_OF_FILE, "", current_line);
 }
 
-// Look up a variable in our symbol table
 Symbol* find_variable(const char* variable_name) {
     for (int i = 0; i < symbols_found; i++) {
         if (strcmp(symbol_table[i].name, variable_name) == 0) {
@@ -352,7 +316,6 @@ Symbol* find_variable(const char* variable_name) {
     return NULL;
 }
 
-// Add a new variable to our symbol table
 bool add_variable(const char* variable_name, int line_number) {
     if (symbols_found >= MAX_SYMBOLS) {
         record_error(line_number, "Too many variables declared");
@@ -371,31 +334,26 @@ bool add_variable(const char* variable_name, int line_number) {
     return true;
 }
 
-// Mark that a variable has been given a value
 void mark_variable_initialized(const char* variable_name) {
     Symbol* variable = find_variable(variable_name);
     if (variable) variable->is_initialized = 1;
 }
 
-// Mark that a variable has been used
 void mark_variable_used(const char* variable_name) {
     Symbol* variable = find_variable(variable_name);
     if (variable) variable->is_used = 1;
 }
 
-// Get the next token in sequence
 Token get_next_token() {
     return (current_token_position < current_token_count) ? 
            all_tokens[current_token_position++] : all_tokens[current_token_count - 1];
 }
 
-// Look at the next token without consuming it
 Token peek_next_token() {
     return (current_token_position < current_token_count) ? 
            all_tokens[current_token_position] : all_tokens[current_token_count - 1];
 }
 
-// Check if the next token is what we expect
 bool expect_token(TokenType expected_type, const char* expected_text) {
     Token next_token = peek_next_token();
     if (next_token.type != expected_type) {
@@ -406,7 +364,6 @@ bool expect_token(TokenType expected_type, const char* expected_text) {
     return true;
 }
 
-// Create a new node in our program tree
 ASTNode* create_tree_node(ASTNodeType node_type, Token token_data, 
                          ASTNode* left_child, ASTNode* right_child) {
     ASTNode* new_node = malloc(sizeof(ASTNode));
@@ -418,12 +375,10 @@ ASTNode* create_tree_node(ASTNodeType node_type, Token token_data,
     return new_node;
 }
 
-// Parse mathematical expressions
 ASTNode* parse_expression();
 ASTNode* parse_term();
 ASTNode* parse_factor();
 
-// Handle numbers, variables, and parentheses
 ASTNode* parse_factor() {
     Token current_token = get_next_token();
     
@@ -446,7 +401,6 @@ ASTNode* parse_factor() {
     return NULL;
 }
 
-// Handle multiplication and division
 ASTNode* parse_term() {
     ASTNode* left_side = parse_factor();
     if (!left_side) return NULL;
@@ -469,7 +423,6 @@ ASTNode* parse_term() {
     return left_side;
 }
 
-// Handle addition and subtraction
 ASTNode* parse_expression() {
     ASTNode* left_side = parse_term();
     if (!left_side) return NULL;
@@ -492,7 +445,6 @@ ASTNode* parse_expression() {
     return left_side;
 }
 
-// Parse variable assignments
 ASTNode* parse_assignment() {
     Token variable_token = get_next_token();
     if (variable_token.type != IDENTIFIER) {
@@ -514,7 +466,6 @@ ASTNode* parse_assignment() {
     return create_tree_node(ASSIGNMENT_NODE, variable_token, expression, NULL);
 }
 
-// Parse variable declarations
 ASTNode* parse_declaration() {
     if (!expect_token(INT_KEYWORD, "int")) return NULL;
     
@@ -528,7 +479,6 @@ ASTNode* parse_declaration() {
         return NULL;
     }
     
-    // Check if variable is being initialized
     if (peek_next_token().type == ASSIGN) {
         get_next_token();
         ASTNode* expression = parse_expression();
@@ -538,7 +488,6 @@ ASTNode* parse_declaration() {
         if (!expect_token(SEMICOLON, ";")) {
             free_program_tree(expression);
             return create_tree_node(VARIABLE_NODE, variable_token, NULL, NULL);
-            // return NULL;
         }
         mark_variable_initialized(variable_token.text);
         return create_tree_node(ASSIGNMENT_NODE, variable_token, expression, NULL);
@@ -548,7 +497,6 @@ ASTNode* parse_declaration() {
            create_tree_node(VARIABLE_NODE, variable_token, NULL, NULL) : NULL;
 }
 
-// Parse any kind of statement
 ASTNode* parse_statement() {
     if (peek_next_token().type == INT_KEYWORD) return parse_declaration();
     
@@ -559,7 +507,6 @@ ASTNode* parse_statement() {
     
     record_error(peek_next_token().line_number, "Invalid statement");
     
-    // Skip to next statement
     while (peek_next_token().type != SEMICOLON && peek_next_token().type != END_OF_FILE) {
         get_next_token();
     }
@@ -568,7 +515,6 @@ ASTNode* parse_statement() {
     return NULL;
 }
 
-// Parse the entire program
 ASTNode* parse_program() {
     ASTNode *program_start = NULL;
     ASTNode *current_statement = NULL;
@@ -587,7 +533,6 @@ ASTNode* parse_program() {
     return program_start;
 }
 
-// Check the program for semantic errors
 void check_program_semantics(ASTNode* node) {
     if (!node) return;
     switch (node->node_type) {
@@ -627,7 +572,6 @@ void check_program_semantics(ASTNode* node) {
     }
 }
 
-// Warn about variables that were declared but never used
 void check_for_unused_variables() {
     for (int i = 0; i < symbols_found; i++) {
         if (!symbol_table[i].is_used) {
@@ -637,17 +581,14 @@ void check_for_unused_variables() {
     }
 }
 
-// Generate code for variable declarations
 void generate_declaration_code(const char* variable_name, FILE* output) {
     Symbol* variable = find_variable(variable_name);
     if (!variable) return;
     
-    // Initialize uninitialized variables to zero
     fprintf(output, "    sb r0, %s(r0)\n", variable->name);
     produce_machine_code("sb", 0, 0, -1, variable->memory_location, output);
 }
 
-// Generate code for expressions
 void generate_expression_code(ASTNode* node, FILE* output, const char* result_register) {
     if (!node) return;
     
@@ -676,13 +617,13 @@ void generate_expression_code(ASTNode* node, FILE* output, const char* result_re
             generate_expression_code(node->right_child, output, right_register);
             
             if (strcmp(node->token_info.text, "+") == 0) {
-                fprintf(output, "    dadd %s, %s, %s\n", result_register, left_register, right_register);
-                produce_machine_code("dadd", get_register_number(left_register), 
+                fprintf(output, "    daddu %s, %s, %s\n", result_register, left_register, right_register);
+                produce_machine_code("daddu", get_register_number(left_register), 
                                    get_register_number(right_register), 
                                    get_register_number(result_register), -1, output);
             } else if (strcmp(node->token_info.text, "-") == 0) {
-                fprintf(output, "    dsub %s, %s, %s\n", result_register, left_register, right_register);
-                produce_machine_code("dsub", get_register_number(left_register), 
+                fprintf(output, "    dsubu %s, %s, %s\n", result_register, left_register, right_register);
+                produce_machine_code("dsubu", get_register_number(left_register), 
                                    get_register_number(right_register), 
                                    get_register_number(result_register), -1, output);
             } else if (strcmp(node->token_info.text, "*") == 0) {
@@ -708,7 +649,6 @@ void generate_expression_code(ASTNode* node, FILE* output, const char* result_re
     }
 }
 
-// Generate code for variable assignments
 void generate_assignment_code(const char* variable_name, ASTNode* expression, FILE* output) {
     Symbol* variable = find_variable(variable_name);
     if (!variable) return;
@@ -754,7 +694,6 @@ void generate_assignment_code(const char* variable_name, ASTNode* expression, FI
    
 }
 
-// Generate the final assembly code
 void generate_assembly_code(ASTNode* node, FILE* output) {
     if (!node) return;
     
@@ -775,7 +714,6 @@ void generate_assembly_code(ASTNode* node, FILE* output) {
             break;
             
         case VARIABLE_NODE:
-            // Handle variable declarations without initialization
             generate_declaration_code(node->token_info.text, output);
             break;
             
@@ -786,7 +724,6 @@ void generate_assembly_code(ASTNode* node, FILE* output) {
     }
 }
 
-// Display the generated code
 void show_generated_code(const char* filename) {
     FILE* file = fopen(filename, "r");
     if (!file) {
@@ -802,7 +739,6 @@ void show_generated_code(const char* filename) {
     fclose(file);
 }
 
-// Get human-readable token names
 const char* get_token_type_name(TokenType type) {
     switch (type) {
         case NUMBER: return "NUMBER";
@@ -817,7 +753,6 @@ const char* get_token_type_name(TokenType type) {
     }
 }
 
-// Get human-readable node type names
 const char* get_node_type_name(ASTNodeType type) {
     switch (type) {
         case PROGRAM_NODE: return "PROGRAM";
@@ -829,11 +764,9 @@ const char* get_node_type_name(ASTNodeType type) {
     }
 }
 
-// Display the program structure
 void display_program_structure(ASTNode *node, int depth) {
     if (node == NULL) return;
 
-    // Indent based on depth
     for (int i = 0; i < depth; i++) printf("  ");
 
     printf("Node Type: %-12s | Token: %-12s | Value: %-8s | Line: %d\n",
@@ -848,17 +781,15 @@ void display_program_structure(ASTNode *node, int depth) {
 
 void print_indent(int level) {
     for (int i = 0; i < level; i++) {
-        printf("  ");   // 2 spaces per indent
+        printf("  ");   
     }
 }
 
 void print_ast(ASTNode *node, int indent) {
     if (!node) return;
 
-    // Print indentation
     for (int i = 0; i < indent; i++) printf("  ");
 
-    // Print node type
     switch (node->node_type) {
         case PROGRAM_NODE:    printf("PROGRAM\n"); break;
         case ASSIGNMENT_NODE: printf("ASSIGNMENT (%s)\n", node->token_info.text); break;
@@ -868,16 +799,13 @@ void print_ast(ASTNode *node, int indent) {
         default:              printf("UNKNOWN\n"); break;
     }
 
-    // Recurse down the tree
     print_ast(node->left_child,  indent + 1);
     print_ast(node->right_child, indent + 1);
 }
 
 
 
-// The main compilation process
 void compile_program(const char* source_code, const char* output_filename) {
-    // Step 1: Break code into tokens
     break_into_tokens(source_code);
     if (error_log.error_count) {
         printf("\nLexical errors found:\n");
@@ -885,7 +813,6 @@ void compile_program(const char* source_code, const char* output_filename) {
         return;
     }
 /*    
-    // Show all tokens we found
     printf("Tokens found in program:\n");
     for (int i = 0; i < current_token_count; i++) {
         printf("Token: type=%s, value='%s', line=%d\n", 
@@ -893,7 +820,6 @@ void compile_program(const char* source_code, const char* output_filename) {
                all_tokens[i].text, all_tokens[i].line_number);
     }
 */    
-    // Step 2: Build program structure
     ASTNode* program_structure = parse_program();
     if (error_log.error_count || !program_structure) {
         printf("Syntax errors found:\n");
@@ -902,7 +828,6 @@ void compile_program(const char* source_code, const char* output_filename) {
         return;
     }
     
-    // Step 3: Check for semantic errors
     check_program_semantics(program_structure);
     check_for_unused_variables();
     if (error_log.error_count) {
@@ -912,13 +837,11 @@ void compile_program(const char* source_code, const char* output_filename) {
         return;
     }
 /*
-    // Show the program structure
     printf("\nProgram Structure:\n");
     display_program_structure(program_structure, 0);
     printf("\n");
     print_ast(program_structure, 0);
 */    
-    // Step 4: Generate executable code
     FILE* output_file = fopen(output_filename, "w");
     if (!output_file) {
         fprintf(stderr, "Cannot create output file: %s\n", output_filename);
@@ -935,7 +858,6 @@ void compile_program(const char* source_code, const char* output_filename) {
     free_program_tree(program_structure);
 }
 
-// Read the source code from file
 char* read_source_code() {
     FILE* source_file = fopen("code.b", "r");
     if (!source_file) {
@@ -961,7 +883,6 @@ char* read_source_code() {
     return code;
 }
 
-// Program entry point
 int main() {
     printf("Submitted by Kian and Charles\n");
     
