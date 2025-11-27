@@ -1,7 +1,9 @@
-int a;
-a = 10 ;
-int b = 8;
+int a;;;;;;;;    int b = 10; ;  
+
 int c;
-c = 7;/*
-*/
-a = a + b * c;
+c = +10;
+b = b++ + - +- c;
+c = ++b + - c; --b; a++;; a+=c; c/=b;
+
+char d = '\n'; d = 'i';
+char e = d + c;

@@ -13,12 +13,16 @@
 typedef enum {
     END_OF_FILE, NUMBER, IDENTIFIER, PLUS, MINUS,
     MULTIPLY, DIVIDE, ASSIGN, SEMICOLON, LEFT_PAREN, 
-    RIGHT_PAREN, INT_KEYWORD, UNKNOWN_TOKEN
+    RIGHT_PAREN, INT_KEYWORD, CHAR_KEYWORD, UNKNOWN_TOKEN,
+    INCREMENT, DECREMENT,
+    PLUS_ASSIGN, MINUS_ASSIGN,
+    MULTIPLY_ASSIGN, DIVIDE_ASSIGN
 } TokenType;
 
 typedef enum { 
     PROGRAM_NODE, ASSIGNMENT_NODE, VARIABLE_NODE, 
-    NUMBER_NODE, OPERATION_NODE 
+    NUMBER_NODE, OPERATION_NODE, UNARY_NODE,
+    COMPOUND_ASSIGN_NODE
 } ASTNodeType;
 
 typedef struct {
@@ -69,8 +73,8 @@ typedef struct {
 
 Instruction supported_instructions[] = {
     {"daddiu", 0b011001, 1, 0b000000},
-    {"daddu",   0b000000, 0, 0b101101},
-    {"dsubu",   0b000000, 0, 0b101111},
+    {"dadd",   0b000000, 0, 0b101100},    
+    {"dsub",   0b000000, 0, 0b101110},    
     {"dmult",  0b000000, 0, 0b011100},
     {"ddiv",   0b000000, 0, 0b011110},
     {"dmul",   0b011100, 0, 0b000010},
@@ -176,12 +180,10 @@ void setup_registers() {
         "r25","r26","r27","r28","r29","r30","r31"
     };
     
-    for (int i = 0; i < 16; i++) {
+    for (int i = 0; i < 32; i++) {
         register_pool.available_registers[i] = register_names[i];
     }
-    for (int i = 16; i < 32; i++) {
-        register_pool.available_registers[i] = "r16";
-    }
+
     register_pool.next_register_index = 0;
 }
 
@@ -215,13 +217,17 @@ bool IS_ALPHANUMERIC(char c) {
 }
 
 TokenType identify_keyword(const char* word) {
-    return strcmp(word, "int") == 0 ? INT_KEYWORD : IDENTIFIER;
+    if (strcmp(word, "int") == 0) return INT_KEYWORD;
+    if (strcmp(word, "char") == 0) return CHAR_KEYWORD;
+    return IDENTIFIER;
 }
 
 void save_token(TokenType type, const char* text_value, int line_number) {
     if (current_token_count < MAX_TOKENS) {
-        all_tokens[current_token_count] = (Token){type, "", line_number};
+        all_tokens[current_token_count].type = type;
+        all_tokens[current_token_count].line_number = line_number;
         strncpy(all_tokens[current_token_count].text, text_value, MAX_NAME_LENGTH - 1);
+        all_tokens[current_token_count].text[MAX_NAME_LENGTH - 1] = '\0';
         current_token_count++;
     } else {
         record_error(line_number, "Too many tokens in program");
@@ -243,15 +249,27 @@ void skip_spaces_and_comments(const char* source_code, int* position, int* curre
                 (*position)++;
             }
         } else if (source_code[*position] == '/' && source_code[*position + 1] == '*') {
-            *position += 2; 
-            while (source_code[*position] != '\0') {
+            *position += 2;
+            int comment_depth = 1;
+            
+            while (source_code[*position] != '\0' && comment_depth > 0) {
                 if (source_code[*position] == '\n') {
                     (*current_line)++;
+                } else if (source_code[*position] == '/' && source_code[*position + 1] == '*') {
+                    comment_depth++;
+                    *position += 2;
+                    continue;
                 } else if (source_code[*position] == '*' && source_code[*position + 1] == '/') {
-                    *position += 2; 
-                    break;
+                    comment_depth--;
+                    *position += 2;
+                    continue;
                 }
                 (*position)++;
+            }
+            
+            if (comment_depth > 0) {
+                record_error(*current_line, "Unterminated multi-line comment");
+                break;
             }
         } else {
             break;
@@ -259,6 +277,7 @@ void skip_spaces_and_comments(const char* source_code, int* position, int* curre
     }
 }
 
+// FIXED: Better character literal parsing
 void break_into_tokens(const char* source_code) {
     int position = 0;
     int current_line = 1;
@@ -267,6 +286,78 @@ void break_into_tokens(const char* source_code) {
         skip_spaces_and_comments(source_code, &position, &current_line);
         if (source_code[position] == '\0') break;
         
+        // Handle character literals
+        if (source_code[position] == '\'') {
+            position++; // Skip opening quote
+            char char_buffer[4] = {0};
+            int char_value = 0;
+            
+            // Handle escape sequences
+            if (source_code[position] == '\\') {
+                position++;
+                switch (source_code[position]) {
+                    case 'n': char_value = '\n'; break;
+                    case 't': char_value = '\t'; break;
+                    case 'r': char_value = '\r'; break;
+                    case '0': char_value = '\0'; break;
+                    case '\\': char_value = '\\'; break;
+                    case '\'': char_value = '\''; break;
+                    default: 
+                        char_value = source_code[position]; 
+                        record_error(current_line, "Unknown escape sequence '\\%c'", source_code[position]);
+                        break;
+                }
+                position++;
+            } else {
+                // Regular character
+                char_value = (unsigned char)source_code[position];
+                position++;
+            }
+            
+            if (source_code[position] == '\'') {
+                position++; // Skip closing quote
+                char num_str[16];
+                snprintf(num_str, sizeof(num_str), "%d", char_value);
+                save_token(NUMBER, num_str, current_line);
+            } else {
+                record_error(current_line, "Unterminated character literal");
+                // Skip to next quote or end of line for recovery
+                while (source_code[position] != '\0' && source_code[position] != '\'' && source_code[position] != '\n') {
+                    position++;
+                }
+                if (source_code[position] == '\'') position++;
+            }
+            continue;
+        }
+
+        // Handle negative numbers
+        if (source_code[position] == '-' && IS_DIGIT(source_code[position + 1])) {
+            char number_buffer[MAX_NAME_LENGTH] = {0};
+            int buffer_index = 0;
+            
+            number_buffer[buffer_index++] = source_code[position++];
+            
+            while (IS_DIGIT(source_code[position]) && buffer_index < MAX_NAME_LENGTH - 1) {
+                number_buffer[buffer_index++] = source_code[position++];
+            }
+            save_token(NUMBER, number_buffer, current_line);
+            continue;
+        }
+
+        // Handle positive numbers with explicit +
+        if (source_code[position] == '+' && IS_DIGIT(source_code[position + 1])) {
+            char number_buffer[MAX_NAME_LENGTH] = {0};
+            int buffer_index = 0;
+            position++; // Skip the '+'
+            
+            while (IS_DIGIT(source_code[position]) && buffer_index < MAX_NAME_LENGTH - 1) {
+                number_buffer[buffer_index++] = source_code[position++];
+            }
+            save_token(NUMBER, number_buffer, current_line);
+            continue;
+        }
+        
+        // Regular numbers
         if (IS_DIGIT(source_code[position])) {
             char number_buffer[MAX_NAME_LENGTH] = {0};
             int buffer_index = 0;
@@ -278,6 +369,7 @@ void break_into_tokens(const char* source_code) {
             continue;
         }
         
+        // Identifiers and keywords
         if (IS_LETTER(source_code[position])) {
             char word_buffer[MAX_NAME_LENGTH] = {0};
             int buffer_index = 0;
@@ -289,20 +381,55 @@ void break_into_tokens(const char* source_code) {
             continue;
         }
         
+        // Multi-character operators
+        if (source_code[position] == '+' && source_code[position + 1] == '+') {
+            save_token(INCREMENT, "++", current_line);
+            position += 2;
+            continue;
+        }
+        if (source_code[position] == '-' && source_code[position + 1] == '-') {
+            save_token(DECREMENT, "--", current_line);
+            position += 2;
+            continue;
+        }
+        if (source_code[position] == '+' && source_code[position + 1] == '=') {
+            save_token(PLUS_ASSIGN, "+=", current_line);
+            position += 2;
+            continue;
+        }
+        if (source_code[position] == '-' && source_code[position + 1] == '=') {
+            save_token(MINUS_ASSIGN, "-=", current_line);
+            position += 2;
+            continue;
+        }
+        if (source_code[position] == '*' && source_code[position + 1] == '=') {
+            save_token(MULTIPLY_ASSIGN, "*=", current_line);
+            position += 2;
+            continue;
+        }
+        if (source_code[position] == '/' && source_code[position + 1] == '=') {
+            save_token(DIVIDE_ASSIGN, "/=", current_line);
+            position += 2;
+            continue;
+        }
+        
+        // Single character tokens
         switch (source_code[position]) {
-            case '+': save_token(PLUS, "+", current_line); break;
-            case '-': save_token(MINUS, "-", current_line); break;
-            case '*': save_token(MULTIPLY, "*", current_line); break;
-            case '/': save_token(DIVIDE, "/", current_line); break;
-            case '=': save_token(ASSIGN, "=", current_line); break;
-            case ';': save_token(SEMICOLON, ";", current_line); break;
-            case '(': save_token(LEFT_PAREN, "(", current_line); break;
-            case ')': save_token(RIGHT_PAREN, ")", current_line); break;
+            case '+': save_token(PLUS, "+", current_line); position++; break;
+            case '-': save_token(MINUS, "-", current_line); position++; break;
+            case '*': save_token(MULTIPLY, "*", current_line); position++; break;
+            case '/': save_token(DIVIDE, "/", current_line); position++; break;
+            case '=': save_token(ASSIGN, "=", current_line); position++; break;
+            case ';': save_token(SEMICOLON, ";", current_line); position++; break;
+            case '(': save_token(LEFT_PAREN, "(", current_line); position++; break;
+            case ')': save_token(RIGHT_PAREN, ")", current_line); position++; break;
             default: 
+                char unknown_char[2] = {source_code[position], '\0'};
+                save_token(UNKNOWN_TOKEN, unknown_char, current_line);
                 record_error(current_line, "Unexpected character '%c'", source_code[position]);
+                position++;
                 break;
         }
-        position++;
     }
     save_token(END_OF_FILE, "", current_line);
 }
@@ -375,39 +502,134 @@ ASTNode* create_tree_node(ASTNodeType node_type, Token token_data,
     return new_node;
 }
 
+// Forward declarations
 ASTNode* parse_expression();
 ASTNode* parse_term();
 ASTNode* parse_factor();
+ASTNode* parse_unary_expression();
+ASTNode* parse_postfix_expression();
+ASTNode* parse_primary_expression();
+ASTNode* parse_multiplicative_expression();
+ASTNode* parse_additive_expression();
 
-ASTNode* parse_factor() {
-    Token current_token = get_next_token();
+// FIXED: Better unary expression parsing to handle consecutive unary operators
+ASTNode* parse_unary_expression() {
+    Token current_token = peek_next_token();
     
-    if (current_token.type == NUMBER) {
-        return create_tree_node(NUMBER_NODE, current_token, NULL, NULL);
+    // Handle unary + and -
+    if (current_token.type == PLUS || current_token.type == MINUS) {
+        Token operator_token = get_next_token();
+        ASTNode* operand = parse_unary_expression(); // Recursive for multiple unary operators
+        
+        if (!operand) {
+            record_error(operator_token.line_number, "Expected expression after unary operator");
+            return NULL;
+        }
+        
+        return create_tree_node(UNARY_NODE, operator_token, operand, NULL);
     }
     
-    if (current_token.type == IDENTIFIER) {
-        mark_variable_used(current_token.text);
-        return create_tree_node(VARIABLE_NODE, current_token, NULL, NULL);
+    // Handle prefix increment/decrement
+    if (current_token.type == INCREMENT || current_token.type == DECREMENT) {
+        Token operator_token = get_next_token();
+        
+        // Parse the operand - should be a variable for prefix operators
+        ASTNode* operand = parse_primary_expression();
+        
+        if (!operand) {
+            record_error(operator_token.line_number, "Expected variable after prefix operator");
+            return NULL;
+        }
+        
+        if (operand->node_type != VARIABLE_NODE) {
+            record_error(operator_token.line_number, "Prefix operator requires a variable");
+            free_program_tree(operand);
+            return NULL;
+        }
+        
+        return create_tree_node(UNARY_NODE, operator_token, operand, NULL);
     }
     
+    return parse_postfix_expression();
+}
+
+ASTNode* parse_primary_expression() {
+    Token current_token = peek_next_token();
+    
+    if (current_token.type == NUMBER || current_token.type == IDENTIFIER) {
+        Token token = get_next_token();
+        if (token.type == NUMBER) {
+            return create_tree_node(NUMBER_NODE, token, NULL, NULL);
+        } else {
+            mark_variable_used(token.text);
+            return create_tree_node(VARIABLE_NODE, token, NULL, NULL);
+        }
+    }
+    
+    // Handle parentheses
     if (current_token.type == LEFT_PAREN) {
+        get_next_token(); // consume '('
         ASTNode* expression = parse_expression();
-        return (expression && expect_token(RIGHT_PAREN, ")")) ? expression : 
-               (free_program_tree(expression), NULL);
+        if (!expression) return NULL;
+        
+        if (!expect_token(RIGHT_PAREN, ")")) {
+            free_program_tree(expression);
+            return NULL;
+        }
+        return expression;
     }
     
-    record_error(current_token.line_number, "Unexpected token in expression");
+    record_error(current_token.line_number, "Expected expression");
     return NULL;
 }
 
-ASTNode* parse_term() {
-    ASTNode* left_side = parse_factor();
+ASTNode* parse_postfix_expression() {
+    ASTNode* left_side = parse_primary_expression();
+    if (!left_side) return NULL;
+    
+    // Check for postfix operators (only on variables)
+    Token next_token = peek_next_token();
+    if ((next_token.type == INCREMENT || next_token.type == DECREMENT) && 
+        left_side->node_type == VARIABLE_NODE) {
+        Token operator_token = get_next_token();
+        
+        // Create postfix operation node
+        ASTNode* operation_node = create_tree_node(UNARY_NODE, operator_token, left_side, NULL);
+        return operation_node;
+    }
+    
+    return left_side;
+}
+
+ASTNode* parse_multiplicative_expression() {
+    ASTNode* left_side = parse_unary_expression(); // CHANGED: Use unary_expression instead of postfix
     if (!left_side) return NULL;
     
     while (peek_next_token().type == MULTIPLY || peek_next_token().type == DIVIDE) {
         Token operator_token = get_next_token();
-        ASTNode* right_side = parse_factor();
+        ASTNode* right_side = parse_unary_expression(); // CHANGED: Use unary_expression instead of postfix
+        
+        if (!right_side) {
+            free_program_tree(left_side);
+            return NULL;
+        }
+        
+        left_side = create_tree_node(OPERATION_NODE, operator_token, left_side, right_side);
+        if (!left_side) {
+            free_program_tree(right_side);
+            return NULL;
+        }
+    }
+    return left_side;
+}
+
+ASTNode* parse_additive_expression() {
+    ASTNode* left_side = parse_multiplicative_expression();
+    if (!left_side) return NULL;
+    
+    while (peek_next_token().type == PLUS || peek_next_token().type == MINUS) {
+        Token operator_token = get_next_token();
+        ASTNode* right_side = parse_multiplicative_expression();
         
         if (!right_side) {
             free_program_tree(left_side);
@@ -424,25 +646,7 @@ ASTNode* parse_term() {
 }
 
 ASTNode* parse_expression() {
-    ASTNode* left_side = parse_term();
-    if (!left_side) return NULL;
-    
-    while (peek_next_token().type == PLUS || peek_next_token().type == MINUS) {
-        Token operator_token = get_next_token();
-        ASTNode* right_side = parse_term();
-        
-        if (!right_side) {
-            free_program_tree(left_side);
-            return NULL;
-        }
-        
-        left_side = create_tree_node(OPERATION_NODE, operator_token, left_side, right_side);
-        if (!left_side) {
-            free_program_tree(right_side);
-            return NULL;
-        }
-    }
-    return left_side;
+    return parse_additive_expression();
 }
 
 ASTNode* parse_assignment() {
@@ -452,14 +656,36 @@ ASTNode* parse_assignment() {
         return NULL;
     }
     
+    Token operator_token = peek_next_token();
+    
+    // Handle compound assignments
+    if (operator_token.type == PLUS_ASSIGN || operator_token.type == MINUS_ASSIGN ||
+        operator_token.type == MULTIPLY_ASSIGN || operator_token.type == DIVIDE_ASSIGN) {
+        get_next_token(); // Consume the compound operator
+        
+        ASTNode* expression = parse_expression();
+        if (!expression) return NULL;
+        
+        // Allow multiple semicolons
+        while (peek_next_token().type == SEMICOLON) {
+            get_next_token();
+        }
+        
+        mark_variable_initialized(variable_token.text);
+        return create_tree_node(COMPOUND_ASSIGN_NODE, operator_token, 
+                              create_tree_node(VARIABLE_NODE, variable_token, NULL, NULL), 
+                              expression);
+    }
+    
+    // Handle regular assignment
     if (!expect_token(ASSIGN, "=")) return NULL;
     
     ASTNode* expression = parse_expression();
     if (!expression) return NULL;
     
-    if (!expect_token(SEMICOLON, ";")) {
-        free_program_tree(expression);
-        return NULL;
+    // Allow multiple semicolons
+    while (peek_next_token().type == SEMICOLON) {
+        get_next_token();
     }
     
     mark_variable_initialized(variable_token.text);
@@ -467,7 +693,12 @@ ASTNode* parse_assignment() {
 }
 
 ASTNode* parse_declaration() {
-    if (!expect_token(INT_KEYWORD, "int")) return NULL;
+    Token type_token = get_next_token();
+    
+    if (type_token.type != INT_KEYWORD && type_token.type != CHAR_KEYWORD) {
+        record_error(type_token.line_number, "Expected 'int' or 'char'");
+        return NULL;
+    }
     
     Token variable_token = get_next_token();
     if (variable_token.type != IDENTIFIER) {
@@ -483,34 +714,134 @@ ASTNode* parse_declaration() {
         get_next_token();
         ASTNode* expression = parse_expression();
         if (!expression) {
+            // Allow multiple semicolons for declaration without initialization
+            while (peek_next_token().type == SEMICOLON) {
+                get_next_token();
+            }
             return create_tree_node(VARIABLE_NODE, variable_token, NULL, NULL);
         }
-        if (!expect_token(SEMICOLON, ";")) {
-            free_program_tree(expression);
-            return create_tree_node(VARIABLE_NODE, variable_token, NULL, NULL);
+        // Allow multiple semicolons
+        while (peek_next_token().type == SEMICOLON) {
+            get_next_token();
         }
         mark_variable_initialized(variable_token.text);
         return create_tree_node(ASSIGNMENT_NODE, variable_token, expression, NULL);
     }
     
-    return expect_token(SEMICOLON, ";") ? 
-           create_tree_node(VARIABLE_NODE, variable_token, NULL, NULL) : NULL;
+    // Allow multiple semicolons for declaration without initialization
+    while (peek_next_token().type == SEMICOLON) {
+        get_next_token();
+    }
+    return create_tree_node(VARIABLE_NODE, variable_token, NULL, NULL);
 }
 
+// FIXED: Better error recovery in statement parsing
 ASTNode* parse_statement() {
-    if (peek_next_token().type == INT_KEYWORD) return parse_declaration();
+    // Handle empty statements (multiple consecutive semicolons)
+    if (peek_next_token().type == SEMICOLON) {
+        while (peek_next_token().type == SEMICOLON) {
+            get_next_token();
+        }
+        return NULL;
+    }
+
+    if (peek_next_token().type == INT_KEYWORD || peek_next_token().type == CHAR_KEYWORD) 
+        return parse_declaration();
     
-    if (peek_next_token().type == IDENTIFIER && 
-        all_tokens[current_token_position + 1].type == ASSIGN) {
-        return parse_assignment();
+    // Handle prefix increment/decrement as standalone statements
+    if (peek_next_token().type == INCREMENT || peek_next_token().type == DECREMENT) {
+        Token op_token = get_next_token();
+        
+        // Expect a variable after the prefix operator
+        if (peek_next_token().type != IDENTIFIER) {
+            record_error(op_token.line_number, "Expected variable after prefix operator");
+            // Skip to next semicolon for recovery
+            while (peek_next_token().type != SEMICOLON && peek_next_token().type != END_OF_FILE) {
+                get_next_token();
+            }
+            if (peek_next_token().type == SEMICOLON) {
+                get_next_token();
+            }
+            return NULL;
+        }
+        
+        Token var_token = get_next_token();
+        
+        // Allow multiple semicolons
+        while (peek_next_token().type == SEMICOLON) {
+            get_next_token();
+        }
+        
+        mark_variable_used(var_token.text);
+        mark_variable_initialized(var_token.text);
+        return create_tree_node(UNARY_NODE, op_token, 
+                              create_tree_node(VARIABLE_NODE, var_token, NULL, NULL), NULL);
     }
     
-    record_error(peek_next_token().line_number, "Invalid statement");
+    if (peek_next_token().type == IDENTIFIER) {
+        Token next_token = peek_next_token();
+        // Look ahead to see what comes after the identifier
+        Token lookahead = (current_token_position + 1 < current_token_count) ? 
+                         all_tokens[current_token_position + 1] : all_tokens[current_token_count - 1];
+        
+        if (lookahead.type == ASSIGN || lookahead.type == PLUS_ASSIGN || 
+            lookahead.type == MINUS_ASSIGN || lookahead.type == MULTIPLY_ASSIGN || 
+            lookahead.type == DIVIDE_ASSIGN) {
+            ASTNode* assignment = parse_assignment();
+            // Consume any extra semicolons after assignment
+            while (peek_next_token().type == SEMICOLON) {
+                get_next_token();
+            }
+            return assignment;
+        } else if (lookahead.type == INCREMENT || lookahead.type == DECREMENT) {
+            // Handle postfix increment/decrement
+            Token var_token = get_next_token();
+            Token op_token = get_next_token();
+            
+            // Allow multiple semicolons
+            while (peek_next_token().type == SEMICOLON) {
+                get_next_token();
+            }
+            
+            mark_variable_used(var_token.text);
+            mark_variable_initialized(var_token.text);
+            return create_tree_node(UNARY_NODE, op_token, 
+                                  create_tree_node(VARIABLE_NODE, var_token, NULL, NULL), NULL);
+        } else {
+            // Try to parse as expression statement
+            ASTNode* expr = parse_expression();
+            if (expr) {
+                // Allow multiple semicolons
+                while (peek_next_token().type == SEMICOLON) {
+                    get_next_token();
+                }
+                return expr;
+            }
+        }
+    }
     
+    // If we get here, try to parse as expression statement
+    ASTNode* expr = parse_expression();
+    if (expr) {
+        // Allow multiple semicolons
+        while (peek_next_token().type == SEMICOLON) {
+            get_next_token();
+        }
+        return expr;
+    }
+    
+    // Enhanced error recovery
+    Token error_token = peek_next_token();
+    record_error(error_token.line_number, "Invalid statement starting with '%s'", error_token.text);
+    
+    // Skip tokens until we find a semicolon or end of file
     while (peek_next_token().type != SEMICOLON && peek_next_token().type != END_OF_FILE) {
         get_next_token();
     }
-    if (peek_next_token().type == SEMICOLON) get_next_token();
+    // Consume the semicolon if we found one
+    if (peek_next_token().type == SEMICOLON) {
+        get_next_token();
+    }
     
     return NULL;
 }
@@ -547,6 +878,19 @@ void check_program_semantics(ASTNode* node) {
             }
             break;
         
+        case UNARY_NODE:
+            if (node->left_child && node->left_child->node_type == VARIABLE_NODE) {
+                Symbol* variable = find_variable(node->left_child->token_info.text);
+                if (!variable) {
+                    record_error(node->token_info.line_number, 
+                               "Variable '%s' was not declared", node->left_child->token_info.text);
+                } else if (!variable->is_initialized) {
+                    fprintf(stderr, "Warning at line %d: Variable '%s' might not have a value\n", 
+                           node->token_info.line_number, node->left_child->token_info.text);
+                }
+                mark_variable_used(node->left_child->token_info.text);
+            }
+            break;
             
         case ASSIGNMENT_NODE: 
             if (!find_variable(node->token_info.text)) {
@@ -555,7 +899,17 @@ void check_program_semantics(ASTNode* node) {
             }
             check_program_semantics(node->left_child);
             break;
-        
+            
+        case COMPOUND_ASSIGN_NODE:
+            if (node->left_child && node->left_child->node_type == VARIABLE_NODE) {
+                if (!find_variable(node->left_child->token_info.text)) {
+                    record_error(node->token_info.line_number, 
+                               "Variable '%s' was not declared", node->left_child->token_info.text);
+                }
+                mark_variable_used(node->left_child->token_info.text);
+            }
+            check_program_semantics(node->right_child);
+            break;
             
         case OPERATION_NODE:
             check_program_semantics(node->left_child);
@@ -600,48 +954,103 @@ void generate_expression_code(ASTNode* node, FILE* output, const char* result_re
             break;
             
         case VARIABLE_NODE: 
-            Symbol* variable = find_variable(node->token_info.text);
-            if (variable) {
-                fprintf(output, "    lb %s, %s(r0)\n", result_register, variable->name);
-                produce_machine_code("lb", 0, get_register_number(result_register), 
-                                   -1, variable->memory_location, output);
+            {
+                Symbol* variable = find_variable(node->token_info.text);
+                if (variable) {
+                    fprintf(output, "    lb %s, %s(r0)\n", result_register, variable->name);
+                    produce_machine_code("lb", 0, get_register_number(result_register), 
+                                       -1, variable->memory_location, output);
+                }
             }
             break;
         
+        case UNARY_NODE:
+            {
+                // Handle unary + and -
+                if (strcmp(node->token_info.text, "+") == 0 || strcmp(node->token_info.text, "-") == 0) {
+                    generate_expression_code(node->left_child, output, result_register);
+                    
+                    if (strcmp(node->token_info.text, "-") == 0) {
+                        fprintf(output, "    dsub %s, r0, %s\n", result_register, result_register);
+                        produce_machine_code("dsub", 0, get_register_number(result_register), 
+                                           get_register_number(result_register), -1, output);
+                    }
+                    // For unary +, we don't need to do anything
+                }
+                // Handle postfix operations in expressions
+                else if (node->left_child && node->left_child->node_type == VARIABLE_NODE) {
+                    const char* var_name = node->left_child->token_info.text;
+                    Symbol* variable = find_variable(var_name);
+                    if (variable) {
+                        const char* temp_reg = get_register();
+                        
+                        // Load current value for use in expression
+                        fprintf(output, "    lb %s, %s(r0)\n", result_register, var_name);
+                        produce_machine_code("lb", 0, get_register_number(result_register), 
+                                           -1, variable->memory_location, output);
+                        
+                        // Also load to temp for modification
+                        fprintf(output, "    lb %s, %s(r0)\n", temp_reg, var_name);
+                        produce_machine_code("lb", 0, get_register_number(temp_reg), 
+                                           -1, variable->memory_location, output);
+                        
+                        // Apply operation
+                        if (strcmp(node->token_info.text, "++") == 0) {
+                            fprintf(output, "    daddiu %s, %s, 1\n", temp_reg, temp_reg);
+                            produce_machine_code("daddiu", get_register_number(temp_reg), 
+                                               get_register_number(temp_reg), -1, 1, output);
+                        } else if (strcmp(node->token_info.text, "--") == 0) {
+                            fprintf(output, "    daddiu %s, %s, -1\n", temp_reg, temp_reg);
+                            produce_machine_code("daddiu", get_register_number(temp_reg), 
+                                               get_register_number(temp_reg), -1, -1, output);
+                        }
+                        
+                        // Store modified value back
+                        fprintf(output, "    sb %s, %s(r0)\n", temp_reg, var_name);
+                        produce_machine_code("sb", 0, get_register_number(temp_reg), 
+                                           -1, variable->memory_location, output);
+                        
+                        release_register();
+                    }
+                }
+            }
+            break;
             
         case OPERATION_NODE: 
-            const char* left_register = get_register();
-            const char* right_register = get_register();
-            
-            generate_expression_code(node->left_child, output, left_register);
-            generate_expression_code(node->right_child, output, right_register);
-            
-            if (strcmp(node->token_info.text, "+") == 0) {
-                fprintf(output, "    daddu %s, %s, %s\n", result_register, left_register, right_register);
-                produce_machine_code("daddu", get_register_number(left_register), 
-                                   get_register_number(right_register), 
-                                   get_register_number(result_register), -1, output);
-            } else if (strcmp(node->token_info.text, "-") == 0) {
-                fprintf(output, "    dsubu %s, %s, %s\n", result_register, left_register, right_register);
-                produce_machine_code("dsubu", get_register_number(left_register), 
-                                   get_register_number(right_register), 
-                                   get_register_number(result_register), -1, output);
-            } else if (strcmp(node->token_info.text, "*") == 0) {
-                fprintf(output, "    dmult %s, %s\n", left_register, right_register);
-                produce_machine_code("dmult", get_register_number(left_register), 
-                                   get_register_number(right_register), -1, -1, output);
-                fprintf(output, "    mflo %s\n", result_register);
-                produce_machine_code("mflo", -1, -1, get_register_number(result_register), -1, output);
-            } else if (strcmp(node->token_info.text, "/") == 0) {
-                fprintf(output, "    ddiv %s, %s\n", left_register, right_register);
-                produce_machine_code("ddiv", get_register_number(left_register), 
-                                   get_register_number(right_register), -1, -1, output);
-                fprintf(output, "    mflo %s\n", result_register);
-                produce_machine_code("mflo", -1, -1, get_register_number(result_register), -1, output);
+            {
+                const char* left_register = get_register();
+                const char* right_register = get_register();
+                
+                generate_expression_code(node->left_child, output, left_register);
+                generate_expression_code(node->right_child, output, right_register);
+                
+                if (strcmp(node->token_info.text, "+") == 0) {
+                    fprintf(output, "    dadd %s, %s, %s\n", result_register, left_register, right_register);
+                    produce_machine_code("dadd", get_register_number(left_register), 
+                                       get_register_number(right_register), 
+                                       get_register_number(result_register), -1, output);
+                } else if (strcmp(node->token_info.text, "-") == 0) {
+                    fprintf(output, "    dsub %s, %s, %s\n", result_register, left_register, right_register);
+                    produce_machine_code("dsub", get_register_number(left_register), 
+                                       get_register_number(right_register), 
+                                       get_register_number(result_register), -1, output);
+                } else if (strcmp(node->token_info.text, "*") == 0) {
+                    fprintf(output, "    dmult %s, %s\n", left_register, right_register);
+                    produce_machine_code("dmult", get_register_number(left_register), 
+                                       get_register_number(right_register), -1, -1, output);
+                    fprintf(output, "    mflo %s\n", result_register);
+                    produce_machine_code("mflo", -1, -1, get_register_number(result_register), -1, output);
+                } else if (strcmp(node->token_info.text, "/") == 0) {
+                    fprintf(output, "    ddiv %s, %s\n", left_register, right_register);
+                    produce_machine_code("ddiv", get_register_number(left_register), 
+                                       get_register_number(right_register), -1, -1, output);
+                    fprintf(output, "    mflo %s\n", result_register);
+                    produce_machine_code("mflo", -1, -1, get_register_number(result_register), -1, output);
+                }
+                
+                release_register();
+                release_register();
             }
-            
-            release_register();
-            release_register();
             break;
         
         default:
@@ -649,49 +1058,97 @@ void generate_expression_code(ASTNode* node, FILE* output, const char* result_re
     }
 }
 
+void generate_unary_operation_code(ASTNode* node, FILE* output) {
+    if (!node || !node->left_child) return;
+    
+    // Handle prefix increment/decrement on variables
+    if (node->left_child->node_type == VARIABLE_NODE) {
+        const char* variable_name = node->left_child->token_info.text;
+        Symbol* variable = find_variable(variable_name);
+        if (!variable) return;
+        
+        const char* temp_reg = get_register();
+        
+        // Load current value
+        fprintf(output, "    lb %s, %s(r0)\n", temp_reg, variable_name);
+        produce_machine_code("lb", 0, get_register_number(temp_reg), -1, variable->memory_location, output);
+        
+        if (strcmp(node->token_info.text, "++") == 0) {
+            // Increment
+            fprintf(output, "    daddiu %s, %s, 1\n", temp_reg, temp_reg);
+            produce_machine_code("daddiu", get_register_number(temp_reg), get_register_number(temp_reg), 
+                               -1, 1, output);
+        } else if (strcmp(node->token_info.text, "--") == 0) {
+            // Decrement
+            fprintf(output, "    daddiu %s, %s, -1\n", temp_reg, temp_reg);
+            produce_machine_code("daddiu", get_register_number(temp_reg), get_register_number(temp_reg), 
+                               -1, -1, output);
+        }
+        
+        // Store back
+        fprintf(output, "    sb %s, %s(r0)\n", temp_reg, variable_name);
+        produce_machine_code("sb", 0, get_register_number(temp_reg), -1, variable->memory_location, output);
+        
+        release_register();
+    }
+}
+
+void generate_compound_assignment_code(const char* variable_name, ASTNode* expression, 
+                                      const char* operator, FILE* output) {
+    Symbol* variable = find_variable(variable_name);
+    if (!variable) return;
+    
+    const char* result_reg = get_register();
+    const char* temp_reg = get_register();
+    
+    // Load current variable value
+    fprintf(output, "    lb %s, %s(r0)\n", temp_reg, variable_name);
+    produce_machine_code("lb", 0, get_register_number(temp_reg), -1, variable->memory_location, output);
+    
+    // Evaluate expression
+    generate_expression_code(expression, output, result_reg);
+    
+    // Perform operation
+    if (strcmp(operator, "+=") == 0) {
+        fprintf(output, "    dadd %s, %s, %s\n", temp_reg, temp_reg, result_reg);
+        produce_machine_code("dadd", get_register_number(temp_reg), get_register_number(result_reg), 
+                           get_register_number(temp_reg), -1, output);
+    } else if (strcmp(operator, "-=") == 0) {
+        fprintf(output, "    dsub %s, %s, %s\n", temp_reg, temp_reg, result_reg);
+        produce_machine_code("dsub", get_register_number(temp_reg), get_register_number(result_reg), 
+                           get_register_number(temp_reg), -1, output);
+    } else if (strcmp(operator, "*=") == 0) {
+        fprintf(output, "    dmult %s, %s\n", temp_reg, result_reg);
+        produce_machine_code("dmult", get_register_number(temp_reg), get_register_number(result_reg), -1, -1, output);
+        fprintf(output, "    mflo %s\n", temp_reg);
+        produce_machine_code("mflo", -1, -1, get_register_number(temp_reg), -1, output);
+    } else if (strcmp(operator, "/=") == 0) {
+        fprintf(output, "    ddiv %s, %s\n", temp_reg, result_reg);
+        produce_machine_code("ddiv", get_register_number(temp_reg), get_register_number(result_reg), -1, -1, output);
+        fprintf(output, "    mflo %s\n", temp_reg);
+        produce_machine_code("mflo", -1, -1, get_register_number(temp_reg), -1, output);
+    }
+    
+    // Store result back
+    fprintf(output, "    sb %s, %s(r0)\n", temp_reg, variable_name);
+    produce_machine_code("sb", 0, get_register_number(temp_reg), -1, variable->memory_location, output);
+    
+    release_register();
+    release_register();
+}
+
 void generate_assignment_code(const char* variable_name, ASTNode* expression, FILE* output) {
     Symbol* variable = find_variable(variable_name);
     if (!variable) return;
     
-    clear_registers();
-
-    switch (expression->node_type) {
-        case NUMBER_NODE:
-            const char* temp_register = get_register();
-                fprintf(output, "    daddiu %s, r0, %s\n", temp_register, expression->token_info.text);
-                produce_machine_code("daddiu", 0, get_register_number(temp_register), 
-                                -1, atoi(expression->token_info.text), output);
-                fprintf(output, "    sb %s, %s(r0)\n", temp_register, variable->name);
-                produce_machine_code("sb", 0, get_register_number(temp_register), 
-                                -1, variable->memory_location, output);
-                release_register();
-            break;
-        
-        case VARIABLE_NODE:
-            Symbol* source_variable = find_variable(expression->token_info.text);
-            if (source_variable) {
-                const char* temp_register = get_register();
-                fprintf(output, "    lb %s, %s(r0)\n", temp_register, source_variable->name);
-                produce_machine_code("lb", 0, get_register_number(temp_register), 
-                                -1, source_variable->memory_location, output);
-                fprintf(output, "    sb %s, %s(r0)\n", temp_register, variable->name);
-                produce_machine_code("sb", 0, get_register_number(temp_register), 
-                                -1, variable->memory_location, output);
-                release_register();
-            }
-            break;
-
-        default:
-            const char* result_register = get_register();
-            generate_expression_code(expression, output, result_register);
-            fprintf(output, "    sb %s, %s(r0)\n", result_register, variable->name);
-            produce_machine_code("sb", 0, get_register_number(result_register), 
-                            -1, variable->memory_location, output);
-            release_register();
-            break;
-    }
+    const char* result_register = get_register();
+    generate_expression_code(expression, output, result_register);
     
-   
+    fprintf(output, "    sb %s, %s(r0)\n", result_register, variable->name);
+    produce_machine_code("sb", 0, get_register_number(result_register), 
+                        -1, variable->memory_location, output);
+    
+    release_register();
 }
 
 void generate_assembly_code(ASTNode* node, FILE* output) {
@@ -711,6 +1168,17 @@ void generate_assembly_code(ASTNode* node, FILE* output) {
             
         case ASSIGNMENT_NODE:
             generate_assignment_code(node->token_info.text, node->left_child, output);
+            break;
+            
+        case COMPOUND_ASSIGN_NODE:
+            if (node->left_child && node->left_child->node_type == VARIABLE_NODE) {
+                generate_compound_assignment_code(node->left_child->token_info.text, 
+                                                node->right_child, node->token_info.text, output);
+            }
+            break;
+            
+        case UNARY_NODE:
+            generate_unary_operation_code(node, output);
             break;
             
         case VARIABLE_NODE:
@@ -741,6 +1209,7 @@ void show_generated_code(const char* filename) {
 
 const char* get_token_type_name(TokenType type) {
     switch (type) {
+        case END_OF_FILE: return "END_OF_FILE";
         case NUMBER: return "NUMBER";
         case IDENTIFIER: return "IDENTIFIER";
         case PLUS: return "PLUS";
@@ -748,7 +1217,18 @@ const char* get_token_type_name(TokenType type) {
         case MULTIPLY: return "MULTIPLY";
         case DIVIDE: return "DIVIDE";
         case ASSIGN: return "ASSIGN";
-        case INT_KEYWORD: return "INT";
+        case SEMICOLON: return "SEMICOLON";
+        case LEFT_PAREN: return "LEFT_PAREN";
+        case RIGHT_PAREN: return "RIGHT_PAREN";
+        case INT_KEYWORD: return "INT_KEYWORD";
+        case CHAR_KEYWORD: return "CHAR_KEYWORD";
+        case UNKNOWN_TOKEN: return "UNKNOWN_TOKEN";
+        case INCREMENT: return "INCREMENT";
+        case DECREMENT: return "DECREMENT";
+        case PLUS_ASSIGN: return "PLUS_ASSIGN";
+        case MINUS_ASSIGN: return "MINUS_ASSIGN";
+        case MULTIPLY_ASSIGN: return "MULTIPLY_ASSIGN";
+        case DIVIDE_ASSIGN: return "DIVIDE_ASSIGN";
         default: return "UNKNOWN";
     }
 }
@@ -760,6 +1240,8 @@ const char* get_node_type_name(ASTNodeType type) {
         case VARIABLE_NODE: return "VARIABLE";
         case NUMBER_NODE: return "NUMBER";
         case OPERATION_NODE: return "BINARY_OP";
+        case UNARY_NODE: return "UNARY_OP";
+        case COMPOUND_ASSIGN_NODE: return "COMPOUND_ASSIGN";
         default: return "UNKNOWN";
     }
 }
@@ -779,47 +1261,29 @@ void display_program_structure(ASTNode *node, int depth) {
     display_program_structure(node->right_child, depth + 1);
 }
 
-void print_indent(int level) {
-    for (int i = 0; i < level; i++) {
-        printf("  ");   
-    }
-}
-
-void print_ast(ASTNode *node, int indent) {
-    if (!node) return;
-
-    for (int i = 0; i < indent; i++) printf("  ");
-
-    switch (node->node_type) {
-        case PROGRAM_NODE:    printf("PROGRAM\n"); break;
-        case ASSIGNMENT_NODE: printf("ASSIGNMENT (%s)\n", node->token_info.text); break;
-        case VARIABLE_NODE:   printf("VARIABLE (%s)\n", node->token_info.text); break;
-        case NUMBER_NODE:     printf("NUMBER (%s)\n", node->token_info.text); break;
-        case OPERATION_NODE:  printf("OPERATION (%s)\n", node->token_info.text); break;
-        default:              printf("UNKNOWN\n"); break;
-    }
-
-    print_ast(node->left_child,  indent + 1);
-    print_ast(node->right_child, indent + 1);
-}
-
-
-
 void compile_program(const char* source_code, const char* output_filename) {
+    // Reset global state
+    current_token_count = 0;
+    current_token_position = 0;
+    symbols_found = 0;
+    next_memory_location = 0;
+    error_log.error_count = 0;
+    clear_registers();
+    
     break_into_tokens(source_code);
     if (error_log.error_count) {
         printf("\nLexical errors found:\n");
         display_errors();
         return;
     }
-/*    
+  
     printf("Tokens found in program:\n");
     for (int i = 0; i < current_token_count; i++) {
         printf("Token: type=%s, value='%s', line=%d\n", 
                get_token_type_name(all_tokens[i].type), 
                all_tokens[i].text, all_tokens[i].line_number);
     }
-*/    
+    
     ASTNode* program_structure = parse_program();
     if (error_log.error_count || !program_structure) {
         printf("Syntax errors found:\n");
@@ -836,12 +1300,10 @@ void compile_program(const char* source_code, const char* output_filename) {
         free_program_tree(program_structure);
         return;
     }
-/*
+
     printf("\nProgram Structure:\n");
     display_program_structure(program_structure, 0);
-    printf("\n");
-    print_ast(program_structure, 0);
-*/    
+
     FILE* output_file = fopen(output_filename, "w");
     if (!output_file) {
         fprintf(stderr, "Cannot create output file: %s\n", output_filename);

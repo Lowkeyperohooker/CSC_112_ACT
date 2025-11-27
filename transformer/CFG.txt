@@ -1,7 +1,27 @@
-Program  → Statement*
-Statement → Declaration | Assignment
-Declaration → int IDENTIFIER (= Expression)?;
-Assignment → IDENTIFIER = Expression ;
-Expression → Term ( (+|-) Term )*
-Term → Factor ( (*|/) Factor )*
-Factor → NUMBER | IDENTIFIER | ( Expression )
+<program>         ::= <statement_list>
+<statement_list>  ::= <statement> | <statement> <statement_list>
+<statement>       ::= <declaration> | <assignment> | <expression_stmt> | <unary_stmt> | ";"
+
+<declaration>     ::= ("int" | "char") IDENTIFIER [ "=" <expression> ] ";"
+<assignment>      ::= IDENTIFIER "=" <expression> ";"
+<compound_assign> ::= IDENTIFIER <compound_op> <expression> ";"
+<expression_stmt> ::= <expression> ";"
+<unary_stmt>      ::= <unary_operator> IDENTIFIER ";" | IDENTIFIER <unary_operator> ";"
+
+<expression>      ::= <additive_expression>
+<additive_expression> ::= <multiplicative_expression> 
+                         | <additive_expression> ("+" | "-") <multiplicative_expression>
+
+<multiplicative_expression> ::= <postfix_expression>
+                               | <multiplicative_expression> ("*" | "/") <postfix_expression>
+
+<postfix_expression> ::= <primary_expression> 
+                        | <postfix_expression> <unary_operator>
+
+<primary_expression> ::= NUMBER
+                       | IDENTIFIER
+                       | "(" <expression> ")"
+                       | <unary_operator> <primary_expression>
+
+<unary_operator>    ::= "++" | "--"
+<compound_op>       ::= "+=" | "-=" | "*=" | "/="
