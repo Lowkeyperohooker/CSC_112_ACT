@@ -70,77 +70,102 @@ SINGLE_QUOTE  ::= "'"
 
 
 
-# AST Node Productions
-<ast_program>        ::= PROGRAM_NODE <ast_statement> <ast_program_tail>
-<ast_program_tail>   ::= ε | PROGRAM_NODE <ast_statement> <ast_program_tail>
+<program> ::= <statement_list>
 
-<ast_statement>      ::= <ast_declaration> | <ast_assignment> | <ast_compound_assign>
-                        | <ast_expression> | <ast_unary_stmt>
+<statement_list> ::= <statement> <statement_list>
+                   | ε
 
-<ast_declaration>    ::= VARIABLE_NODE(IDENTIFIER)
-<ast_assignment>     ::= ASSIGNMENT_NODE(IDENTIFIER) <ast_expression>
-<ast_compound_assign>::= COMPOUND_ASSIGN_NODE(compound_op) 
-                         VARIABLE_NODE(IDENTIFIER) <ast_expression>
+<statement> ::= <declaration_statement>
+              | <assignment_statement>
+              | <expression_statement>
+              | <unary_statement>
+              | <compound_assignment_statement>
+              | <empty_statement>
 
-<ast_unary_stmt>     ::= UNARY_NODE(unary_operator) VARIABLE_NODE(IDENTIFIER)
+<declaration_statement> ::= <type_specifier> <declarator_list> ";"
 
-<ast_expression>     ::= <ast_additive_expr>
-<ast_additive_expr>  ::= <ast_multiplicative_expr>
-                        | OPERATION_NODE("+" | "-") 
-                          <ast_additive_expr> <ast_multiplicative_expr>
+<type_specifier> ::= "int" | "char"
 
-<ast_multiplicative_expr> ::= <ast_unary_expr>
-                             | OPERATION_NODE("*" | "/") 
-                               <ast_multiplicative_expr> <ast_unary_expr>
+<declarator_list> ::= <declarator> <declarator_tail>
 
-<ast_unary_expr>     ::= <ast_postfix_expr>
-                        | UNARY_NODE("+" | "-") <ast_unary_expr>
-                        | UNARY_NODE(unary_operator) <ast_unary_expr>
+<declarator_tail> ::= "," <declarator> <declarator_tail>
+                    | ε
 
-<ast_postfix_expr>   ::= <ast_primary_expr>
-                        | UNARY_NODE(unary_operator) <ast_postfix_expr>
+<declarator> ::= <identifier> <initializer_opt>
 
-<ast_primary_expr>   ::= NUMBER_NODE(NUMBER) 
-                        | VARIABLE_NODE(IDENTIFIER)
-                        | <ast_expression>  # for parentheses
+<initializer_opt> ::= "=" <expression>
+                    | ε
 
+<assignment_statement> ::= <identifier> "=" <assignment_rhs> ";"
 
+<assignment_rhs> ::= <expression>
+                   | <identifier> "=" <assignment_rhs>
 
-<program>         ::= <statement_list>
-<statement_list>  ::= <statement> | <statement> <statement_list>
-<statement>       ::= <declaration> | <assignment> | <compound_assign> 
-                     | <expression_stmt> | <unary_stmt> | ";"
+<compound_assignment_statement> ::= <identifier> <compound_operator> <expression> ";"
 
-<declaration>     ::= ("int" | "char") IDENTIFIER [ "=" <expression> ] [";"]+
-<assignment>      ::= IDENTIFIER "=" <expression> [";"]+
-<compound_assign> ::= IDENTIFIER <compound_op> <expression> [";"]+
-<expression_stmt> ::= <expression> [";"]+
-<unary_stmt>      ::= <prefix_expr> [";"]+ | <postfix_expr> [";"]+
-<prefix_expr>     ::= <unary_operator> IDENTIFIER
-<postfix_expr>    ::= IDENTIFIER <unary_operator>
+<compound_operator> ::= "+=" | "-=" | "*=" | "/="
 
-<expression>      ::= <additive_expression>
-<additive_expression> ::= <multiplicative_expression> 
-                         | <additive_expression> ("+" | "-") <multiplicative_expression>
+<expression_statement> ::= <expression> ";"
 
-<multiplicative_expression> ::= <unary_expression>
-                               | <multiplicative_expression> ("*" | "/") <unary_expression>
+<unary_statement> ::= <unary_operator> <identifier> ";"
+                    | <identifier> <unary_operator> ";"
 
-<unary_expression> ::= <postfix_expression>
-                      | ("+" | "-") <unary_expression>
-                      | <unary_operator> <unary_expression>
+<unary_operator> ::= "++" | "--"
 
-<postfix_expression> ::= <primary_expression> 
-                        | <postfix_expression> <unary_operator>
+<empty_statement> ::= ";"
 
-<primary_expression> ::= NUMBER
-                       | IDENTIFIER
+<expression> ::= <additive_expression>
+
+<additive_expression> ::= <multiplicative_expression> <additive_tail>
+
+<additive_tail> ::= <additive_operator> <multiplicative_expression> <additive_tail>
+                  | ε
+
+<additive_operator> ::= "+" | "-"
+
+<multiplicative_expression> ::= <unary_expression> <multiplicative_tail>
+
+<multiplicative_tail> ::= <multiplicative_operator> <unary_expression> <multiplicative_tail>
+                        | ε
+
+<multiplicative_operator> ::= "*" | "/"
+
+<unary_expression> ::= <unary_operator> <unary_expression>
+                     | <postfix_expression>
+
+<postfix_expression> ::= <primary_expression> <postfix_operator_opt>
+
+<postfix_operator_opt> ::= <unary_operator>
+                         | ε
+
+<primary_expression> ::= <number>
+                       | <character_literal>
+                       | <identifier>
                        | "(" <expression> ")"
-                       | <char_literal>
 
-<char_literal>    ::= "'" <character> "'"
-<character>       ::= <printable_char> | <escape_sequence>
-<escape_sequence> ::= "\\" ("n" | "t" | "r" | "0" | "\\" | "'")
+<number> ::= <digit> <digit_sequence_opt>
 
-<unary_operator>  ::= "++" | "--"
-<compound_op>     ::= "+=" | "-=" | "*=" | "/="
+<digit_sequence_opt> ::= <digit> <digit_sequence_opt>
+                       | ε
+
+<character_literal> ::= "'" <character> "'"
+
+<character> ::= <printable_character>
+              | <escape_sequence>
+
+<escape_sequence> ::= "\\" <escape_char>
+
+<escape_char> ::= "n" | "t" | "r" | "0" | "\\" | "'"
+
+<identifier> ::= <letter> <alphanumeric_sequence_opt>
+
+<alphanumeric_sequence_opt> ::= <alphanumeric> <alphanumeric_sequence_opt>
+                              | ε
+
+<letter> ::= "a" | "b" | ... | "z" | "A" | "B" | ... | "Z" | "_"
+
+<digit> ::= "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9"
+
+<alphanumeric> ::= <letter> | <digit>
+
+<printable_character> ::= /* any printable ASCII character except single quote and backslash */
