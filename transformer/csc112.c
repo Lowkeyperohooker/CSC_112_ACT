@@ -1277,12 +1277,12 @@ void compile_program(const char* source_code, const char* output_filename) {
         return;
     }
   
-    printf("Tokens found in program:\n");
-    for (int i = 0; i < current_token_count; i++) {
-        printf("Token: type=%s, value='%s', line=%d\n", 
-               get_token_type_name(all_tokens[i].type), 
-               all_tokens[i].text, all_tokens[i].line_number);
-    }
+    // printf("Tokens found in program:\n");
+    // for (int i = 0; i < current_token_count; i++) {
+    //     printf("Token: type=%s, value='%s', line=%d\n", 
+    //            get_token_type_name(all_tokens[i].type), 
+    //            all_tokens[i].text, all_tokens[i].line_number);
+    // }
     
     ASTNode* program_structure = parse_program();
     if (error_log.error_count || !program_structure) {
@@ -1301,8 +1301,8 @@ void compile_program(const char* source_code, const char* output_filename) {
         return;
     }
 
-    printf("\nProgram Structure:\n");
-    display_program_structure(program_structure, 0);
+    // printf("\nProgram Structure:\n");
+    // display_program_structure(program_structure, 0);
 
     FILE* output_file = fopen(output_filename, "w");
     if (!output_file) {

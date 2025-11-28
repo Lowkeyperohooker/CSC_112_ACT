@@ -2,7 +2,7 @@ int a;;;;;;;;    int b = 10; ;
 
 int c;
 c = +10;
-b = b++ + - +- c;
+b = b++ + - +- (c);
 c = ++b + - c; --b; a++;; a+=c; c/=b;
 
 char d = '\n'; d = 'i';

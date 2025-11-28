@@ -23,5 +23,124 @@
                        | "(" <expression> ")"
                        | <unary_operator> <primary_expression>
 
-<unary_operator>    ::= "++" | "--"
+<unary_operator>    ::= "++" | "--" | "+" | "-"
 <compound_op>       ::= "+=" | "-=" | "*=" | "/="
+
+
+# Terminal Symbols (Tokens)
+IDENTIFIER  ::= [a-zA-Z_][a-zA-Z0-9_]*
+NUMBER      ::= [0-9]+ | [-+][0-9]+
+COMMENT     ::= "//" [^\n]* | "/*" (. | \n)* "*/"
+WHITESPACE  ::= [ \t\r\n]+
+
+# Keywords
+INT_KEYWORD    ::= "int"
+CHAR_KEYWORD   ::= "char"
+
+# Operators
+PLUS          ::= "+"
+MINUS         ::= "-"
+MULTIPLY      ::= "*"
+DIVIDE        ::= "/"
+ASSIGN        ::= "="
+INCREMENT     ::= "++"
+DECREMENT     ::= "--"
+PLUS_ASSIGN   ::= "+="
+MINUS_ASSIGN  ::= "-="
+MULTIPLY_ASSIGN ::= "*="
+DIVIDE_ASSIGN ::= "/="
+
+# Punctuation
+SEMICOLON     ::= ";"
+LEFT_PAREN    ::= "("
+RIGHT_PAREN   ::= ")"
+SINGLE_QUOTE  ::= "'"
+
+
+
+# Semantic Constraints
+<declaration>        ::= ("int" | "char") IDENTIFIER   # IDENTIFIER must not be previously declared
+<assignment>         ::= IDENTIFIER "=" <expression>   # IDENTIFIER must be previously declared
+<variable_use>       ::= IDENTIFIER                    # IDENTIFIER must be declared and initialized
+
+<unary_stmt>         ::= <unary_operator> IDENTIFIER   # IDENTIFIER must be declared
+                        | IDENTIFIER <unary_operator>   # IDENTIFIER must be declared
+
+<compound_assign>    ::= IDENTIFIER <compound_op> <expression>  # IDENTIFIER must be declared
+
+
+
+# AST Node Productions
+<ast_program>        ::= PROGRAM_NODE <ast_statement> <ast_program_tail>
+<ast_program_tail>   ::= ε | PROGRAM_NODE <ast_statement> <ast_program_tail>
+
+<ast_statement>      ::= <ast_declaration> | <ast_assignment> | <ast_compound_assign>
+                        | <ast_expression> | <ast_unary_stmt>
+
+<ast_declaration>    ::= VARIABLE_NODE(IDENTIFIER)
+<ast_assignment>     ::= ASSIGNMENT_NODE(IDENTIFIER) <ast_expression>
+<ast_compound_assign>::= COMPOUND_ASSIGN_NODE(compound_op) 
+                         VARIABLE_NODE(IDENTIFIER) <ast_expression>
+
+<ast_unary_stmt>     ::= UNARY_NODE(unary_operator) VARIABLE_NODE(IDENTIFIER)
+
+<ast_expression>     ::= <ast_additive_expr>
+<ast_additive_expr>  ::= <ast_multiplicative_expr>
+                        | OPERATION_NODE("+" | "-") 
+                          <ast_additive_expr> <ast_multiplicative_expr>
+
+<ast_multiplicative_expr> ::= <ast_unary_expr>
+                             | OPERATION_NODE("*" | "/") 
+                               <ast_multiplicative_expr> <ast_unary_expr>
+
+<ast_unary_expr>     ::= <ast_postfix_expr>
+                        | UNARY_NODE("+" | "-") <ast_unary_expr>
+                        | UNARY_NODE(unary_operator) <ast_unary_expr>
+
+<ast_postfix_expr>   ::= <ast_primary_expr>
+                        | UNARY_NODE(unary_operator) <ast_postfix_expr>
+
+<ast_primary_expr>   ::= NUMBER_NODE(NUMBER) 
+                        | VARIABLE_NODE(IDENTIFIER)
+                        | <ast_expression>  # for parentheses
+
+
+
+<program>         ::= <statement_list>
+<statement_list>  ::= <statement> | <statement> <statement_list>
+<statement>       ::= <declaration> | <assignment> | <compound_assign> 
+                     | <expression_stmt> | <unary_stmt> | ";"
+
+<declaration>     ::= ("int" | "char") IDENTIFIER [ "=" <expression> ] [";"]+
+<assignment>      ::= IDENTIFIER "=" <expression> [";"]+
+<compound_assign> ::= IDENTIFIER <compound_op> <expression> [";"]+
+<expression_stmt> ::= <expression> [";"]+
+<unary_stmt>      ::= <prefix_expr> [";"]+ | <postfix_expr> [";"]+
+<prefix_expr>     ::= <unary_operator> IDENTIFIER
+<postfix_expr>    ::= IDENTIFIER <unary_operator>
+
+<expression>      ::= <additive_expression>
+<additive_expression> ::= <multiplicative_expression> 
+                         | <additive_expression> ("+" | "-") <multiplicative_expression>
+
+<multiplicative_expression> ::= <unary_expression>
+                               | <multiplicative_expression> ("*" | "/") <unary_expression>
+
+<unary_expression> ::= <postfix_expression>
+                      | ("+" | "-") <unary_expression>
+                      | <unary_operator> <unary_expression>
+
+<postfix_expression> ::= <primary_expression> 
+                        | <postfix_expression> <unary_operator>
+
+<primary_expression> ::= NUMBER
+                       | IDENTIFIER
+                       | "(" <expression> ")"
+                       | <char_literal>
+
+<char_literal>    ::= "'" <character> "'"
+<character>       ::= <printable_char> | <escape_sequence>
+<escape_sequence> ::= "\\" ("n" | "t" | "r" | "0" | "\\" | "'")
+
+<unary_operator>  ::= "++" | "--"
+<compound_op>     ::= "+=" | "-=" | "*=" | "/="
