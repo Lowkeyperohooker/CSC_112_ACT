@@ -329,29 +329,45 @@ void break_into_tokens(const char* source_code) {
             continue;
         }
 
-        if (source_code[position] == '-' && IS_DIGIT(source_code[position + 1])) {
-            char number_buffer[MAX_NAME_LENGTH] = {0};
-            int buffer_index = 0;
-            
-            number_buffer[buffer_index++] = source_code[position++];
-            
-            while (IS_DIGIT(source_code[position]) && buffer_index < MAX_NAME_LENGTH - 1) {
-                number_buffer[buffer_index++] = source_code[position++];
+        if (source_code[position] == '-' && IS_DIGIT(source_code[position + 1])) {          
+            bool is_unary_minus = false;
+            if (position > 0) {
+                char prev_char = source_code[position - 1];
+                is_unary_minus = IS_LETTER(prev_char) || IS_DIGIT(prev_char) || prev_char == ')' || prev_char == ']';
             }
-            save_token(NUMBER, number_buffer, current_line);
-            continue;
+            
+            if (!is_unary_minus) {
+                char number_buffer[MAX_NAME_LENGTH] = {0};
+                int buffer_index = 0;
+                
+                number_buffer[buffer_index++] = source_code[position++];
+                
+                while (IS_DIGIT(source_code[position]) && buffer_index < MAX_NAME_LENGTH - 1) {
+                    number_buffer[buffer_index++] = source_code[position++];
+                }
+                save_token(NUMBER, number_buffer, current_line);
+                continue;
+            }
         }
 
         if (source_code[position] == '+' && IS_DIGIT(source_code[position + 1])) {
-            char number_buffer[MAX_NAME_LENGTH] = {0};
-            int buffer_index = 0;
-            position++;
-            
-            while (IS_DIGIT(source_code[position]) && buffer_index < MAX_NAME_LENGTH - 1) {
-                number_buffer[buffer_index++] = source_code[position++];
+            bool is_unary_plus = false;
+            if (position > 0) {
+                char prev_char = source_code[position - 1];
+                is_unary_plus = IS_LETTER(prev_char) || IS_DIGIT(prev_char) || prev_char == ')' || prev_char == ']';
             }
-            save_token(NUMBER, number_buffer, current_line);
-            continue;
+            
+            if (!is_unary_plus) {
+                char number_buffer[MAX_NAME_LENGTH] = {0};
+                int buffer_index = 0;
+                position++; 
+                
+                while (IS_DIGIT(source_code[position]) && buffer_index < MAX_NAME_LENGTH - 1) {
+                    number_buffer[buffer_index++] = source_code[position++];
+                }
+                save_token(NUMBER, number_buffer, current_line);
+                continue;
+            }
         }
         
         if (IS_DIGIT(source_code[position])) {

@@ -1,0 +1,26 @@
+lexical:
+    int            :
+    char           :
+    addition       :
+    difference     :
+    multiplication :
+    division       :
+    assign         :
+    l_par          :
+    r_par          :
+    end            :
+
+
+
+production rule (cfg):
+
+program ==> statement
+statement ==> (assignment  |  declaration  | expression) ;
+declaration ==> data (identifier | assignment) ; 
+data ==> int |  char
+assignment ==> identifier  assign (identifier  |  expression  |  number) 
+expression ==> expression (+|-) term  |  term
+term ==> term (*|/) factor   |   factor
+factor ==> identifier  |  number  |  L_par  expression  r_par
+identifier ==> number
+number ==> 0 -> 9
