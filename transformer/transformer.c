@@ -18,7 +18,8 @@ typedef enum {
     PROGRAM, STATEMENT, 
     ASSIGNMENT, DECLARATION,
     EXPRESSION, TERM, FACTOR, 
-    OPERATION, NUM, ID
+    OPERATION, NUM, ID,
+    EMPTY
 }ParseNode;
 
 struct Token{
@@ -35,6 +36,47 @@ struct ParseTree{
     struct ParseTree *right;
 };
 
+struct Symbol{
+    char name[MAX_NAME_LENGTH];
+    int is_initiallized; 
+    int memory_address;
+    struct Symbol *next;
+};
+
+struct Error{
+    char *name;
+    char *start;
+    int line; 
+    struct Error *next;
+};
+
+
+int memory_offset = 0;
+
+struct Error *head_error = NULL;
+struct Error *curr_error = NULL;
+struct Symbol *head_symbol = NULL;
+struct Symbol *curr_symbol = NULL;
+
+char *get_token(Token_Type token);
+
+void add_error(char *name, char *start, int line) {
+    struct Error *error = malloc(sizeof(struct Error));
+    if(!error) {
+        printf("\n\nFAILED MEMORY ALLOCATION TOKEN!!");
+        return;
+    }
+    error -> name=name; 
+    error -> start=start;
+    error -> line=line;
+    error -> next = NULL;
+
+    if(!head_error) 
+        head_error = curr_error = error;
+    else
+        curr_error = curr_error -> next = error;
+}
+
 struct Token *create_token(Token_Type type, char *name, int line) {
     struct Token *token = malloc(sizeof(struct Token));
     if(!token) {
@@ -42,13 +84,11 @@ struct Token *create_token(Token_Type type, char *name, int line) {
         return NULL;
     }
 
-    *(token) = (struct Token){type, "", line, NULL};
-    strncpy(token->name, name, MAX_NAME_LENGTH);
+    token->type = type;
+    token->line = line;
+    token->next = NULL;
+    strncpy(token->name, name, MAX_NAME_LENGTH - 1);
     return token;
-}
-
-struct Token *add_token(struct Token *head, Token_Type type, char *name, int line) {
-    struct Token *cur = NULL;
 }
 
 struct ParseTree *create_node(ParseNode type, struct Token *token, 
@@ -59,10 +99,14 @@ struct ParseTree *create_node(ParseNode type, struct Token *token,
         printf("\n\nFAILED MEMORY ALLOCATION NODE!!");
         return NULL;
     }
+    node -> type = type;
+    node -> token = token;
+    node -> left = left;
+    node -> right = right;
     *node = (struct ParseTree) {type, token, left, right};
 }
 
-#define IS_NUM(c) (c >= '0' & c <= '9')
+#define IS_NUM(c) (c >= '0' && c <= '9')
 #define IS_LETTER(c) ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z'))
 
 void skip_space(char **source_code, char *cur_char, int *line, int *position) {
@@ -78,8 +122,8 @@ void skip_space(char **source_code, char *cur_char, int *line, int *position) {
     }
 }
 
-struct Token *tokenized(char *source_code, struct Token *tokens) {
-    char b[MAX_NAME_LENGTH] = {0}; 
+struct Token *tokenized(char *source_code) {
+    struct Token *tokens = NULL;
     struct Token *curr = tokens;
     int line = 1;
     int position = 0;
@@ -96,15 +140,14 @@ struct Token *tokenized(char *source_code, struct Token *tokens) {
                 buffer[buffer_index++] = cur_char;               
                 cur_char = *(source_code + position++);
             }
-            printf("\n%s\n", buffer);
+            struct Token *token = create_token(NUMBER, buffer, line); 
             if(!tokens) 
-                curr = tokens = create_token(NUMBER, buffer, line); 
+                curr = tokens = token;
             else 
-                curr = curr->next = create_token(NUMBER, buffer, line);
+                curr = curr->next = token;
             continue;
         }
         
-            struct Token *t = NULL;
         if(IS_LETTER(cur_char)) {
             char buffer[MAX_NAME_LENGTH] = {0};
             int buffer_index = 0;
@@ -113,17 +156,17 @@ struct Token *tokenized(char *source_code, struct Token *tokens) {
                 buffer[buffer_index++] = cur_char;               
                 cur_char = *(source_code + position++);
             }
-            printf("\n%s\n", buffer);
 
+            struct Token *token = NULL;
             if(strcmp(buffer, "int") == 0 || strcmp(buffer, "char") == 0) 
-                t = create_token(DATA_TYPE, buffer, line);
+                token = create_token(DATA_TYPE, buffer, line);
             else 
-                t = create_token(IDENTIFIER, buffer, line);
+                token = create_token(IDENTIFIER, buffer, line);
 
             if(!tokens) 
-                curr = tokens = t;
+                curr = tokens = token;
             else
-                curr = tokens->next = t;
+                curr = curr->next = token;
             continue;
         }
         struct Token *temp = NULL;
@@ -141,37 +184,123 @@ struct Token *tokenized(char *source_code, struct Token *tokens) {
         if(!tokens) 
             tokens = temp;
         else 
-            curr = tokens -> next = temp;
+            curr = curr -> next = temp;
         cur_char = *(source_code + position++);
     }
     
-    curr = create_token(END_OF_FILE, " ", line);
+    if(!tokens) 
+        tokens = curr = create_token(END_OF_FILE, " ", line);
+    else 
+        curr= curr -> next = create_token(END_OF_FILE, " ", line);
     return tokens;
 }
 
-// Token peek_token() {
-//     return tokens[cur_token];
-// }
-
-// Token get_next_token() {
-
-// }
-
-struct ParseTree *parse_statement() {
-    // Token token = get_next_token();
+struct Symbol *find_variable(char *name) {
+    struct Symbol *curr = head_symbol;
+    while(curr) {
+        if(strcmp(name,curr -> name) == 0)
+            return curr;
+        curr = curr -> next;
+    }
+    return NULL;
 }
 
-struct ParseTree *parse_program() {
+void  add_variable(char *name) {
+    if(find_variable(name)) 
+        return;
+
+    struct Symbol *symbol = malloc(sizeof(struct Symbol));
+    if(!symbol) {
+        printf("\n\nFAILED MEMORY ALLOCATION SYMBOL");
+        return;
+    }
+
+    strncpy(symbol -> name, name, MAX_NAME_LENGTH);
+    symbol -> is_initiallized = 0;
+    symbol -> memory_address = memory_offset;
+    memory_offset+= 8;
+
+    if(!head_symbol) 
+        head_symbol = curr_symbol = symbol;
+    else
+        curr_symbol = curr_symbol -> next = symbol;   
+}
+
+struct ParseTree* parse_expression(struct Token **tokens) {
+    return NULL;
+}
+
+struct ParseTree *parse_assignment(struct Token **tokens) {
+    if(!(*tokens) -> type == IDENTIFIER) {
+        add_error("expected identifier", (*tokens) -> name, (*tokens) -> line);
+        return NULL;
+    }
+    *tokens = (*tokens) -> next;
+
+    if((*tokens) -> type == SEMI_COLON) {
+        return NULL;
+    }
+    if((*tokens) -> type == ASSIGN) {
+        struct Token *next = (*tokens) -> next;
+        struct ParseTree *node = parse_expression(&next);
+        *tokens = next;
+        return node;
+    }
+}
+
+struct ParseTree *parse_declaration(struct Token **tokens) {    
+    if(!(*tokens) -> type == DATA_TYPE) {
+        add_error("Expected_variable", (*tokens) -> name, (*tokens) -> line);
+        return NULL;
+    }
+
+    *tokens = (*tokens) -> next;
+    printf("\n\n%s", get_token((*tokens) -> type));
+
+    if((*tokens) -> type == IDENTIFIER) {
+        struct Token* next_token = (*tokens) -> next;
+
+        if(next_token -> type == SEMI_COLON) {
+
+            add_variable(next_token -> name);
+            curr_symbol -> is_initiallized = 1;
+
+            return create_node(DECLARATION, next_token, NULL, NULL);
+        } else if(next_token -> type == ASSIGN) {
+            return parse_assignment(tokens);
+        }
+    }
+    return NULL;
+}
+
+struct ParseTree *parse_statement(struct Token **tokens) {
+    *tokens = (*tokens) -> next;
+
+    if((*tokens) -> type == SEMI_COLON) {
+        return NULL;
+    }
+
+    if((*tokens) -> type == DATA_TYPE) {
+        return parse_declaration(tokens);
+    }
+
+    if((*tokens) -> type == NUM) {
+        return NULL;
+    }
+    return NULL;
+}
+
+struct ParseTree *parse_program(struct Token *tokens) {
     struct ParseTree *head = NULL;
     struct ParseTree *current = NULL;
-    // while(peek_token().type != END_OF_FILE) {
-    //     ParseTree statement = parse_statement();
-    //     if(!head) {
-    //         head = current = parse_program(PROGRAM, peek_token(), statement, NULL);
-    //     }else {
-    //         current->right = parse_program(PROGRAM, peek_token(), statement, NULL);
-    //     }
-    // }
+    while(tokens -> type != END_OF_FILE) {
+        struct ParseTree *statement = parse_statement(&tokens);
+        if(!head) {
+            head = current = create_node(PROGRAM, tokens, statement, NULL);
+        }else {
+            current->right = create_node(PROGRAM, tokens, statement, NULL);
+        }
+    }
     return head;
 }
 
@@ -214,18 +343,22 @@ void free_token(struct Token *head) {
 }
 
 void free_nodes(struct ParseTree *nodes) {
+    if(!nodes) {
+        return;
+    }
     free_nodes(nodes->left);
     free_nodes(nodes->right);
     free(nodes);
 }
 
 void compile(char *source_code, char *output_name) {
-    struct Token *tokens = tokenized(source_code, tokens);
+    struct Token *tokens = tokenized(source_code);
 
     
     print_tokens(tokens);
 
-    // ParseTree *parse_tree = parse_program();
+    printf("\n\nParsing");
+    struct ParseTree *parse_tree = parse_program(tokens);
 
     free_token(tokens);
     // free_node(parse_tree);
@@ -256,11 +389,29 @@ char* read_file() {
     return code;
 }
 
+void free_symbols(struct Symbol *curr) {
+    while(curr) {
+        struct Symbol *temp = curr;
+        curr = curr -> next;
+        free(temp);
+    }
+}
+
+void free_errors(struct Error *curr) {
+    while(curr) {
+        struct Error *temp = curr;
+        curr = curr -> next;
+        free(temp);
+    }
+}
+
 int main() {
     char *source_code = read_file();
     printf("%s\n", source_code);
 
     compile(source_code, "output.s");
 
+    free_symbols(head_symbol);
+    free_errors(head_error);
     return 0;
 }
