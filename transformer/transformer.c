@@ -215,6 +215,7 @@ void  add_variable(char *name) {
         return;
     }
 
+    symbol -> next = NULL;
     strncpy(symbol -> name, name, MAX_NAME_LENGTH);
     symbol -> is_initiallized = 0;
     symbol -> memory_address = memory_offset;
@@ -226,50 +227,113 @@ void  add_variable(char *name) {
         curr_symbol = curr_symbol -> next = symbol;   
 }
 
+struct ParseTree *parse_expression(struct Token**);
+
+// struct ParseTree *parse_id(struct Token **tokens) {
+//     return create_node(NUM, *tokens, NULL, NULL);
+// }
+
+struct ParseTree *parse_factor(struct Token **tokens) {
+    if((*tokens) -> type == IDENTIFIER) return create_node(ID, *tokens, 
+        NULL, NULL);
+    if((*tokens) -> type ==  NUMBER) return create_node(NUM, *tokens, NULL, NULL);
+
+    if((*tokens) -> type ==  L_PAR) {
+        *tokens = (*tokens) -> next;
+        return parse_expression(tokens);
+    }
+}
+
+struct ParseTree *parse_term(struct Token **tokens) {
+    struct ParseTree *left = parse_factor(tokens);
+    if(!left) return NULL;
+    
+    *tokens = (*tokens) -> next;
+
+    if(!((*tokens) -> type == MULTIPLICATION || (*tokens) -> type == DIVISION)) {
+
+        struct Token *tmp = (*tokens);
+        *tokens = (*tokens) -> next;
+        struct ParseTree *right = parse_factor(tokens);
+        if(!right) {
+            return create_node(OPERATION, tmp, left, right);
+        } 
+        
+        return create_node(OPERATION, tmp, left, NULL);
+    } 
+    return NULL;
+
+}
+
 struct ParseTree* parse_expression(struct Token **tokens) {
+    struct ParseTree *left = parse_term(tokens);
+    if(!left) {
+        add_error("unexpected assign", (*tokens)->name, (*tokens) -> line);
+        return NULL;
+    }
+    *tokens = (*tokens) -> next;
+
+    if(!((*tokens) -> type == ADDITION || (*tokens) -> type == DIFFERENCE)) {
+
+        struct Token *tmp = (*tokens);
+        *tokens = (*tokens) -> next;
+        struct ParseTree *right = parse_term(tokens);
+        if(!right) {
+            return create_node(OPERATION, tmp, left, right);
+        } 
+        
+        return create_node(OPERATION, tmp, left, NULL);
+    } 
     return NULL;
 }
 
 struct ParseTree *parse_assignment(struct Token **tokens) {
+    // if(!(*tokens) -> type == IDENTIFIER) {
+    //     add_error("expected identifier", (*tokens) -> name, (*tokens) -> line);
+    //     return NULL;
+    // }
+    // *tokens = (*tokens) -> next;
+
+    // if((*tokens) -> type == SEMI_COLON) {
+    //     return NULL;
+    // }
+    // if((*tokens) -> type == ASSIGN) {
+    *tokens = (*tokens) -> next;
+    if((*tokens) -> type == SEMI_COLON) {
+        add_error("unexpected semicolon", (*tokens) -> name,(*tokens) -> line);
+    } 
+    return create_node(ASSIGNMENT, *tokens, parse_expression(tokens), NULL);
+    // }
+    // return NULL;
+}
+
+struct ParseTree *parse_declaration(struct Token **tokens) {    
     if(!(*tokens) -> type == IDENTIFIER) {
         add_error("expected identifier", (*tokens) -> name, (*tokens) -> line);
         return NULL;
     }
-    *tokens = (*tokens) -> next;
-
-    if((*tokens) -> type == SEMI_COLON) {
-        return NULL;
-    }
-    if((*tokens) -> type == ASSIGN) {
-        struct Token *next = (*tokens) -> next;
-        struct ParseTree *node = parse_expression(&next);
-        *tokens = next;
-        return node;
-    }
-}
-
-struct ParseTree *parse_declaration(struct Token **tokens) {    
-    if(!(*tokens) -> type == DATA_TYPE) {
-        add_error("Expected_variable", (*tokens) -> name, (*tokens) -> line);
-        return NULL;
-    }
-
-    *tokens = (*tokens) -> next;
     printf("\n\n%s", get_token((*tokens) -> type));
 
-    if((*tokens) -> type == IDENTIFIER) {
-        struct Token* next_token = (*tokens) -> next;
+    struct Token* next_token = (*tokens) -> next;
 
-        if(next_token -> type == SEMI_COLON) {
 
-            add_variable(next_token -> name);
-            curr_symbol -> is_initiallized = 1;
+    if(next_token -> type == SEMI_COLON) {
 
-            return create_node(DECLARATION, next_token, NULL, NULL);
-        } else if(next_token -> type == ASSIGN) {
-            return parse_assignment(tokens);
-        }
+        add_variable(next_token -> name);
+        curr_symbol -> is_initiallized = 1;
+
+        return create_node(DECLARATION, *tokens, NULL, NULL);
+            
+    } else if(next_token -> type == ASSIGN) {
+
+        add_variable(next_token -> name);
+        curr_symbol -> is_initiallized = 1;
+
+        struct Token *tmp = *tokens;
+        *tokens = next_token -> next; 
+        return create_node(ASSIGNMENT, tmp, parse_assignment(tokens), NULL);
     }
+    
     return NULL;
 }
 
@@ -281,7 +345,15 @@ struct ParseTree *parse_statement(struct Token **tokens) {
     }
 
     if((*tokens) -> type == DATA_TYPE) {
-        return parse_declaration(tokens);
+        struct Token *tmp = *tokens;
+        *tokens = (*tokens) -> next;
+        return create_node(STATEMENT, tmp, parse_declaration(tokens), NULL);
+    }
+
+    if((*tokens) -> type == IDENTIFIER) {
+        struct Token *tmp = *tokens;
+        *tokens = (*tokens) -> next;
+        return create_node(STATEMENT, tmp, parse_assignment(tokens), NULL);
     }
 
     if((*tokens) -> type == NUM) {
@@ -322,17 +394,51 @@ char *get_token(Token_Type token) {
     }
 }
 
+char *get_node(ParseNode type) {
+    switch (type) {
+    case PROGRAM: return "program"; break;
+    case STATEMENT: return "statement"; break;
+    case ASSIGNMENT: return "assignment"; break;
+    case DECLARATION: return "declaration"; break;
+    case EXPRESSION: return "expression"; break;
+    case TERM: return "term"; break;
+    case FACTOR: return "factor"; break;
+    case OPERATION: return "operation"; break;
+    case NUM: return "num"; break;
+    case ID: return "id"; break;
+    case EMPTY: return "empty"; break;
+    default: return "ambot"; break;
+    }
+}
+
+void print_token(struct Token *token) {
+    printf("\nToken type: %s", get_token(token->type));
+    printf("\nToken name: %s", token->name);
+    printf("\nToken line: %d", token->line);
+}
+
 void print_tokens(struct Token *token) {
     while(token) {
         struct Token *next = token->next;
 
-        printf("\n\nToken type: %s", get_token(token->type));
-        printf("\nToken name: %s", token->name);
-        printf("\nToken line: %d", token->line);
-
+        print_token(token);
+        printf("\n");
         token = next;
     }
 }
+
+void print_node(struct ParseTree *node) {
+    printf("\nNode type: %s\n", get_node(node-> type));
+    print_token(node -> token);
+}
+
+void show_nodes(struct ParseTree *node) {
+    if (!node) return;
+    printf("\n");
+    print_node(node);
+    show_nodes(node -> left);
+    show_nodes(node -> right);
+ }
 
 void free_token(struct Token *head) {
     while(head) {
@@ -355,13 +461,14 @@ void compile(char *source_code, char *output_name) {
     struct Token *tokens = tokenized(source_code);
 
     
-    print_tokens(tokens);
+    // print_tokens(tokens);
 
     printf("\n\nParsing");
     struct ParseTree *parse_tree = parse_program(tokens);
 
+    show_nodes(parse_tree);
     free_token(tokens);
-    // free_node(parse_tree);
+    free_nodes(parse_tree);
 }
 
 char* read_file() {
