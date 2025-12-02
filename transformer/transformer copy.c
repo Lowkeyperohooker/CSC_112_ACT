@@ -235,126 +235,114 @@ struct ParseTree *parse_expression(struct Token**);
 // }
 
 struct ParseTree *parse_factor(struct Token **tokens) {
-    struct Token *current = *tokens;
-    
-    if(current->type == IDENTIFIER) {
-        *tokens = current->next;
-        return create_node(ID, current, NULL, NULL);
+    if((*tokens) -> type == IDENTIFIER) {
+         struct Token *tmp = *tokens;  
+        *tokens = (*tokens) -> next;
+        return create_node(ID, tmp, NULL, NULL);
     }
-    
-    if(current->type == NUMBER) {
-        *tokens = current->next;
-        return create_node(NUM, current, NULL, NULL);
+    if((*tokens) -> type ==  NUMBER) {
+         struct Token *tmp = *tokens;         
+        *tokens = (*tokens) -> next;
+        return create_node(NUM, tmp, NULL, NULL);
     }
-    
-    if(current->type == L_PAR) {
-        *tokens = current->next; // Skip '('
-        struct ParseTree *expr = parse_expression(tokens);
-        
-        if(!expr || (*tokens)->type != R_PAR) {
-            add_error("expected ')'", (*tokens)->name, (*tokens)->line);
-            return NULL;
-        }
-        
-        *tokens = (*tokens)->next; // Skip ')'
-        return expr;
+
+    if((*tokens) -> type ==  L_PAR) {
+        *tokens = (*tokens) -> next;
+        return parse_expression(tokens);
     }
-    
-    add_error("expected identifier, number, or '('", current->name, current->line);
-    return NULL;
 }
 
 struct ParseTree *parse_term(struct Token **tokens) {
     struct ParseTree *left = parse_factor(tokens);
     if(!left) return NULL;
     
-    while((*tokens)->type == MULTIPLICATION || (*tokens)->type == DIVISION) {
-        struct Token *op_token = *tokens;
-        *tokens = (*tokens)->next;
-        
+    *tokens = (*tokens) -> next;
+
+    if(((*tokens) -> type == MULTIPLICATION || (*tokens) -> type == DIVISION)) {
+
+        struct Token *tmp = (*tokens);
+        *tokens = (*tokens) -> next;
         struct ParseTree *right = parse_factor(tokens);
         if(!right) {
-            add_error("expected factor after operator", op_token->name, op_token->line);
-            return left;
-        }
+            return create_node(OPERATION, tmp, left, right);
+        } 
         
-        left = create_node(OPERATION, op_token, left, right);
-    }
-    
-    return left;
+        return create_node(OPERATION, tmp, left, NULL);
+    } 
+    return NULL;
+
 }
 
 struct ParseTree* parse_expression(struct Token **tokens) {
     struct ParseTree *left = parse_term(tokens);
-    if(!left) return NULL;
-    
-    while((*tokens)->type == ADDITION || (*tokens)->type == DIFFERENCE) {
-        struct Token *op_token = *tokens;
-        *tokens = (*tokens)->next;
-        
+    if(!left) {
+        add_error("unexpected assign", (*tokens)->name, (*tokens) -> line);
+        return NULL;
+    }
+    *tokens = (*tokens) -> next;
+
+    if(!((*tokens) -> type == ADDITION || (*tokens) -> type == DIFFERENCE)) {
+
+        struct Token *tmp = (*tokens);
+        *tokens = (*tokens) -> next;
         struct ParseTree *right = parse_term(tokens);
         if(!right) {
-            add_error("expected term after operator", op_token->name, op_token->line);
-            return left;
-        }
+            return create_node(OPERATION, tmp, left, right);
+        } 
         
-        left = create_node(OPERATION, op_token, left, right);
-    }
-    
-    return left;
+        return create_node(OPERATION, tmp, left, NULL);
+    } 
+    return NULL;
 }
 
 struct ParseTree *parse_assignment(struct Token **tokens) {
-    struct Token *id_token = *tokens;
-    *tokens = (*tokens)->next;
-    
-    if((*tokens)->type != ASSIGN) {
-        add_error("expected '=' in assignment", (*tokens)->name, (*tokens)->line);
-        return NULL;
-    }
-    
-    *tokens = (*tokens)->next; // Skip '='
-    
-    struct ParseTree *expr = parse_expression(tokens);
-    if(!expr) {
-        add_error("expected expression after '='", (*tokens)->name, (*tokens)->line);
-        return NULL;
-    }
-    
-    return create_node(ASSIGNMENT, id_token, expr, NULL);
+    // if(!(*tokens) -> type == IDENTIFIER) {
+    //     add_error("expected identifier", (*tokens) -> name, (*tokens) -> line);
+    //     return NULL;
+    // }
+    // *tokens = (*tokens) -> next;
+
+    // if((*tokens) -> type == SEMI_COLON) {
+    //     return NULL;
+    // }
+    // if((*tokens) -> type == ASSIGN) {
+    *tokens = (*tokens) -> next;
+    if((*tokens) -> type == SEMI_COLON) {
+        add_error("unexpected semicolon", (*tokens) -> name,(*tokens) -> line);
+    } 
+    return create_node(ASSIGNMENT, *tokens, parse_expression(tokens), NULL);
+    // }
+    // return NULL;
 }
 
 struct ParseTree *parse_declaration(struct Token **tokens) {    
-    if((*tokens)->type != IDENTIFIER) {
-        add_error("expected identifier", (*tokens)->name, (*tokens)->line);
+    if(!(*tokens) -> type == IDENTIFIER) {
+        add_error("expected identifier", (*tokens) -> name, (*tokens) -> line);
         return NULL;
     }
-    
-    struct Token *id_token = *tokens;
-    *tokens = (*tokens)->next;
-    
-    add_variable(id_token->name);
-    
-    if((*tokens)->type == SEMI_COLON) {
-        curr_symbol->is_initiallized = 0;
-        *tokens = (*tokens)->next; // Skip ';'
-        return create_node(DECLARATION, id_token, NULL, NULL);
+    printf("\n\n%s", get_token((*tokens) -> type));
+
+    // struct Token *token = *tokens;
+    struct Token* next_token = (*tokens) -> next;
+
+
+    if(next_token -> type == SEMI_COLON) {
+
+        add_variable(next_token -> name);
+        curr_symbol -> is_initiallized = 1;
+
+        return create_node(DECLARATION, *tokens, NULL, NULL);
+            
+    } else if(next_token -> type == ASSIGN) {
+
+        add_variable(next_token -> name);
+        curr_symbol -> is_initiallized = 1;
+
+        struct Token *tmp = *tokens;
+        *tokens = next_token -> next; 
+        return create_node(DECLARATION, tmp, parse_assignment(tokens), NULL);
     }
     
-    if((*tokens)->type == ASSIGN) {
-        curr_symbol->is_initiallized = 1;
-        *tokens = (*tokens)->next; // Skip '='
-        
-        struct ParseTree *expr = parse_expression(tokens);
-        if(!expr) {
-            add_error("expected expression after '='", (*tokens)->name, (*tokens)->line);
-            return create_node(DECLARATION, id_token, NULL, NULL);
-        }
-        
-        return create_node(DECLARATION, id_token, expr, NULL);
-    }
-    
-    add_error("expected ';' or '=' after identifier", (*tokens)->name, (*tokens)->line);
     return NULL;
 }
 
@@ -385,33 +373,17 @@ struct ParseTree *parse_statement(struct Token **tokens) {
 }
 
 struct ParseTree *parse_program(struct Token *tokens) {
-    struct ParseTree *program_node = create_node(PROGRAM, tokens, NULL, NULL);
-    struct ParseTree *current_stmt = NULL;
-    
-    while(tokens->type != END_OF_FILE) {
+    struct ParseTree *head = NULL;
+    struct ParseTree *current = NULL;
+    while(tokens -> type != END_OF_FILE) {
         struct ParseTree *statement = parse_statement(&tokens);
-        if(statement) {
-            if(!program_node->left) {
-                program_node->left = statement;
-                current_stmt = statement;
-            } else {
-                // Link statements as a linked list in the right child
-                struct ParseTree *temp = current_stmt;
-                while(temp->right) temp = temp->right;
-                temp->right = statement;
-            }
-        }
-        
-        // Skip to next statement if there's an error
-        if(tokens->type != END_OF_FILE && !statement) {
-            while(tokens->type != SEMI_COLON && tokens->type != END_OF_FILE) {
-                tokens = tokens->next;
-            }
-            if(tokens->type == SEMI_COLON) tokens = tokens->next;
+        if(!head) {
+            head = current = create_node(PROGRAM, tokens, statement, NULL);
+        }else {
+            current->right = create_node(PROGRAM, tokens, statement, NULL);
         }
     }
-    
-    return program_node;
+    return head;
 }
 
 char *get_token(Token_Type token) {

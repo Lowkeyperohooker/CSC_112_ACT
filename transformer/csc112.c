@@ -23,7 +23,7 @@ typedef enum {
 typedef enum { 
     PROGRAM_NODE, ASSIGNMENT_NODE, VARIABLE_NODE, 
     NUMBER_NODE, OPERATION_NODE, UNARY_NODE,
-    COMPOUND_ASSIGN_NODE, CHAR_NODE
+    COMPOUND_ASSIGN_NODE, CHAR_NODE, DECLARATION_NODE
 } ASTNodeType;
 
 typedef struct {
@@ -37,6 +37,7 @@ typedef struct {
     int is_initialized;
     int is_used;
     int memory_location;
+    int size;
 } Symbol;
 
 typedef struct ASTNode {
@@ -44,6 +45,7 @@ typedef struct ASTNode {
     Token token_info;
     struct ASTNode *left_child;
     struct ASTNode *right_child;
+    struct ASTNode *next;
 } ASTNode;
 
 typedef struct {
@@ -54,6 +56,8 @@ typedef struct {
 typedef struct {
     const char* available_registers[32];
     int next_register_index;
+    int used_registers[32];
+    int register_count;
 } RegisterPool;
 
 Token all_tokens[MAX_TOKENS];
@@ -68,21 +72,21 @@ RegisterPool register_pool = {0};
 typedef struct {
     const char* instruction_name;
     unsigned int opcode_value;
-    unsigned int instruction_format;
-    unsigned int function_code; 
+    unsigned int instruction_format;  
+    unsigned int sub_code;
+    unsigned int function_code;
 } Instruction;
 
 Instruction supported_instructions[] = {
-    {"daddiu", 0b011001, 1, 0b000000},
-    {"dadd",   0b000000, 0, 0b101100},    
-    {"dsub",   0b000000, 0, 0b101110},    
-    {"dmult",  0b000000, 0, 0b011100},
-    {"ddiv",   0b000000, 0, 0b011110},
-    {"dmul",   0b011100, 0, 0b000010},
-    {"mflo",   0b000000, 0, 0b010010},
-    {"mfhi",   0b000000, 0, 0b010000},
-    {"lb",     0b100000, 1, 0b000000},
-    {"sb",     0b101000, 1, 0b000000},
+    {"daddiu", 0b011001, 1, 0, 0b000000},
+    {"lb",     0b100000, 1, 0, 0b000000},
+    {"sb",     0b101000, 1, 0, 0b000000},
+    {"daddu",  0b000000, 0, 0b00000, 0b101101},
+    {"dsubu",  0b000000, 0, 0b00000, 0b101111},
+    {"dmul",   0b000000, 0, 0b00010, 0b011100},
+    {"dmulu",  0b000000, 0, 0b00010, 0b011101},
+    {"ddiv",   0b000000, 0, 0b00010, 0b011110},
+    {"ddivu",  0b000000, 0, 0b00010, 0b011111}
 };
 
 int find_instruction(const char* instruction_name) {
@@ -102,19 +106,13 @@ unsigned int create_instruction_code(const char* instruction_name, int source_re
     
     Instruction inst = supported_instructions[instruction_index];
     
-    if (inst.instruction_format == 0) {
-        if (strcmp(instruction_name, "mflo") == 0 || strcmp(instruction_name, "mfhi") == 0) {
-            return (inst.opcode_value << 26) | (dest_reg << 11) | inst.function_code;
-        } else if (strcmp(instruction_name, "dmult") == 0 || strcmp(instruction_name, "ddiv") == 0) {
-            return (inst.opcode_value << 26) | (source_reg << 21) | (target_reg << 16) | inst.function_code;
-        } else {
-            return (inst.opcode_value << 26) | (source_reg << 21) | (target_reg << 16) | 
-                   (dest_reg << 11) | inst.function_code;
-        }
-    } else {
+    if (inst.instruction_format == 1) {  
         unsigned int immediate_16bit = immediate_value & 0xFFFF;
         return (inst.opcode_value << 26) | (source_reg << 21) | 
                (target_reg << 16) | immediate_16bit;
+    } else {  
+        return (inst.opcode_value << 26) | (source_reg << 21) | (target_reg << 16) |
+               (dest_reg << 11) | inst.function_code;
     }
 }
 
@@ -140,7 +138,8 @@ void produce_machine_code(const char* instruction_name, int source_reg, int targ
 int get_register_number(const char* register_name) {
     if (register_name[0] == 'r' || register_name[0] == 'R') {
         if (register_name[1] != '\0') {
-            return atoi(register_name + 1);
+            int reg_num = atoi(register_name + 1);
+            if (reg_num >= 0 && reg_num <= 31) return reg_num;
         }
     }
     return 0;
@@ -150,6 +149,7 @@ void free_program_tree(ASTNode* node) {
     if (!node) return;
     free_program_tree(node->left_child);
     free_program_tree(node->right_child);
+    free_program_tree(node->next);
     free(node);
 }
 
@@ -176,32 +176,44 @@ void display_errors() {
 
 void setup_registers() {
     const char* register_names[] = {
-        "r1","r2","r3","r4","r5","r6","r7","r8",
-        "r9","r10","r11","r12","r13","r14","r15","r16",
-        "r17","r18","r19","r20","r21","r22","r23","r24",
-        "r25","r26","r27","r28","r29","r30","r31"
+        "r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7",
+        "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15",
+        "r16", "r17", "r18", "r19", "r20", "r21", "r22", "r23",
+        "r24", "r25", "r26", "r27", "r28", "r29", "r30", "r31"
     };
     
-    for (int i = 0; i < 31; i++) {
+    for (int i = 0; i < 32; i++) {
         register_pool.available_registers[i] = register_names[i];
     }
 
-    register_pool.next_register_index = 0;
+    register_pool.next_register_index = 1;
+    register_pool.register_count = 32;
+    memset(register_pool.used_registers, 0, sizeof(register_pool.used_registers));
+    register_pool.used_registers[0] = 1;
 }
 
 const char* get_register() {
-    if (register_pool.next_register_index >= 31) {
-        return "r31";
+    for (int i = 1; i < register_pool.register_count; i++) {
+        if (!register_pool.used_registers[i]) {
+            register_pool.used_registers[i] = 1;
+            return register_pool.available_registers[i];
+        }
     }
-    return register_pool.available_registers[register_pool.next_register_index++];
+    return "r31";
 }
 
-void release_register() {
-    if (register_pool.next_register_index > 0) register_pool.next_register_index--;
+void release_register_by_name(const char* reg_name) {
+    for (int i = 0; i < register_pool.register_count; i++) {
+        if (strcmp(register_pool.available_registers[i], reg_name) == 0) {
+            register_pool.used_registers[i] = 0;
+            break;
+        }
+    }
 }
 
 void clear_registers() {
-    register_pool.next_register_index = 0;
+    memset(register_pool.used_registers, 0, sizeof(register_pool.used_registers));
+    register_pool.used_registers[0] = 1;
 }
 
 bool IS_WHITESPACE(char c) {
@@ -464,9 +476,10 @@ bool add_variable(const char* variable_name, int line_number) {
         return false;
     }
     
-    symbol_table[symbols_found] = (Symbol){{0}, 0, 0, symbols_found * 8};
+    symbol_table[symbols_found] = (Symbol){{0}, 0, 0, next_memory_location, 4};
     strncpy(symbol_table[symbols_found].name, variable_name, MAX_NAME_LENGTH - 1);
     symbols_found++;
+    next_memory_location += 8;
     return true;
 }
 
@@ -507,7 +520,7 @@ ASTNode* create_tree_node(ASTNodeType node_type, Token token_data,
         record_error(token_data.line_number, "Memory allocation failed");
         return NULL;
     }
-    *new_node = (ASTNode){node_type, token_data, left_child, right_child};
+    *new_node = (ASTNode){node_type, token_data, left_child, right_child, NULL};
     return new_node;
 }
 
@@ -706,65 +719,48 @@ ASTNode* parse_declaration() {
     }
     
     ASTNode* declaration_list = NULL;
-    ASTNode* current_decl = NULL;
+    ASTNode* last_declaration = NULL;
     
-    Token variable_token = get_next_token();
-    if (variable_token.type != IDENTIFIER) {
-        record_error(variable_token.line_number, "Expected variable name");
-        return NULL;
-    }
-    
-    if (!add_variable(variable_token.text, variable_token.line_number)) {
-        return NULL;
-    }
-    
-    ASTNode* first_decl = NULL;
-    
-    if (peek_next_token().type == ASSIGN) {
-        get_next_token();
-        ASTNode* expression = parse_expression();
-        if (!expression) {
-            record_error(variable_token.line_number, "Expected expression after '='");
+    while (1) {
+        Token variable_token = get_next_token();
+        if (variable_token.type != IDENTIFIER) {
+            record_error(variable_token.line_number, "Expected variable name");
             return NULL;
         }
-        mark_variable_initialized(variable_token.text);
-        first_decl = create_tree_node(ASSIGNMENT_NODE, variable_token, expression, NULL);
-    } else {
-        first_decl = create_tree_node(VARIABLE_NODE, variable_token, NULL, NULL);
-    }
-    
-    declaration_list = current_decl = create_tree_node(PROGRAM_NODE, type_token, first_decl, NULL);
-    
-    while (peek_next_token().type == COMMA) {
-        get_next_token();
         
-        Token next_var_token = get_next_token();
-        if (next_var_token.type != IDENTIFIER) {
-            record_error(next_var_token.line_number, "Expected variable name after comma");
-            break;
+        if (!add_variable(variable_token.text, variable_token.line_number)) {
+            return NULL;
         }
         
-        if (!add_variable(next_var_token.text, next_var_token.line_number)) {
-            break;
-        }
-        
-        ASTNode* next_decl = NULL;
+        ASTNode* assignment_node = NULL;
         
         if (peek_next_token().type == ASSIGN) {
             get_next_token();
             ASTNode* expression = parse_expression();
             if (!expression) {
-                record_error(next_var_token.line_number, "Expected expression after '='");
-                break;
+                record_error(variable_token.line_number, "Expected expression after '='");
+                return NULL;
             }
-            mark_variable_initialized(next_var_token.text);
-            next_decl = create_tree_node(ASSIGNMENT_NODE, next_var_token, expression, NULL);
+            mark_variable_initialized(variable_token.text);
+            assignment_node = create_tree_node(ASSIGNMENT_NODE, variable_token, expression, NULL);
         } else {
-            next_decl = create_tree_node(VARIABLE_NODE, next_var_token, NULL, NULL);
+            assignment_node = create_tree_node(VARIABLE_NODE, variable_token, NULL, NULL);
         }
         
-        current_decl->right_child = create_tree_node(PROGRAM_NODE, type_token, next_decl, NULL);
-        current_decl = current_decl->right_child;
+        ASTNode* decl_node = create_tree_node(DECLARATION_NODE, type_token, assignment_node, NULL);
+        
+        if (!declaration_list) {
+            declaration_list = decl_node;
+        } else {
+            last_declaration->next = decl_node;
+        }
+        last_declaration = decl_node;
+        
+        if (peek_next_token().type == COMMA) {
+            get_next_token();
+        } else {
+            break;
+        }
     }
     
     if (!expect_token(SEMICOLON, ";")) {
@@ -772,18 +768,12 @@ ASTNode* parse_declaration() {
         return NULL;
     }
     
-    while (peek_next_token().type == SEMICOLON) {
-        get_next_token();
-    }
-    
     return declaration_list;
 }
 
 ASTNode* parse_statement() {
     if (peek_next_token().type == SEMICOLON) {
-        while (peek_next_token().type == SEMICOLON) {
-            get_next_token();
-        }
+        get_next_token();
         return NULL;
     }
 
@@ -807,8 +797,15 @@ ASTNode* parse_statement() {
         Token var_token = get_next_token();
         mark_variable_used(var_token.text);
         mark_variable_initialized(var_token.text);
-        return create_tree_node(UNARY_NODE, op_token, 
+        
+        ASTNode* node = create_tree_node(UNARY_NODE, op_token, 
                               create_tree_node(VARIABLE_NODE, var_token, NULL, NULL), NULL);
+        
+        if (!expect_token(SEMICOLON, ";")) {
+            free_program_tree(node);
+            return NULL;
+        }
+        return node;
     }
     
     if (peek_next_token().type == IDENTIFIER) {
@@ -819,18 +816,34 @@ ASTNode* parse_statement() {
         if (lookahead.type == ASSIGN || lookahead.type == PLUS_ASSIGN || 
             lookahead.type == MINUS_ASSIGN || lookahead.type == MULTIPLY_ASSIGN || 
             lookahead.type == DIVIDE_ASSIGN) {
-            return parse_assignment();
+            ASTNode* assignment = parse_assignment();
+            if (assignment && !expect_token(SEMICOLON, ";")) {
+                free_program_tree(assignment);
+                return NULL;
+            }
+            return assignment;
         } else if (lookahead.type == INCREMENT || lookahead.type == DECREMENT) {
             Token var_token = get_next_token();
             Token op_token = get_next_token();
             
             mark_variable_used(var_token.text);
             mark_variable_initialized(var_token.text);
-            return create_tree_node(UNARY_NODE, op_token, 
+            
+            ASTNode* node = create_tree_node(UNARY_NODE, op_token, 
                                   create_tree_node(VARIABLE_NODE, var_token, NULL, NULL), NULL);
+            
+            if (!expect_token(SEMICOLON, ";")) {
+                free_program_tree(node);
+                return NULL;
+            }
+            return node;
         } else {
             ASTNode* expr = parse_expression();
             if (expr) {
+                if (!expect_token(SEMICOLON, ";")) {
+                    free_program_tree(expr);
+                    return NULL;
+                }
                 return expr;
             }
         }
@@ -838,6 +851,10 @@ ASTNode* parse_statement() {
     
     ASTNode* expr = parse_expression();
     if (expr) {
+        if (!expect_token(SEMICOLON, ";")) {
+            free_program_tree(expr);
+            return NULL;
+        }
         return expr;
     }
     
@@ -864,10 +881,10 @@ ASTNode* parse_program() {
         ASTNode* statement = parse_statement();
         if (statement) {
             if (!program_start) {
-                program_start = current_statement = create_tree_node(PROGRAM_NODE, all_tokens[0], statement, NULL);
+                program_start = current_statement = statement;
             } else {
-                current_statement = current_statement->right_child = 
-                    create_tree_node(PROGRAM_NODE, all_tokens[0], statement, NULL);
+                current_statement->next = statement;
+                current_statement = statement;
             }
         }
     }
@@ -876,15 +893,18 @@ ASTNode* parse_program() {
 
 void check_program_semantics(ASTNode* node) {
     if (!node) return;
+    
     switch (node->node_type) {
         case VARIABLE_NODE: 
-            Symbol* variable = find_variable(node->token_info.text);
-            if (!variable) {
-                record_error(node->token_info.line_number, 
-                           "Variable '%s' was not declared", node->token_info.text);
-            } else if (!variable->is_initialized) {
-                fprintf(stderr, "Warning at line %d: Variable '%s' might not have a value\n", 
-                       node->token_info.line_number, node->token_info.text);
+            {
+                Symbol* variable = find_variable(node->token_info.text);
+                if (!variable) {
+                    record_error(node->token_info.line_number, 
+                               "Variable '%s' was not declared", node->token_info.text);
+                } else if (!variable->is_initialized) {
+                    fprintf(stderr, "Warning at line %d: Variable '%s' might not have a value\n", 
+                           node->token_info.line_number, node->token_info.text);
+                }
             }
             break;
         
@@ -903,16 +923,20 @@ void check_program_semantics(ASTNode* node) {
             break;
             
         case ASSIGNMENT_NODE: 
-            if (!find_variable(node->token_info.text)) {
-                record_error(node->token_info.line_number, 
-                           "Variable '%s' was not declared", node->token_info.text);
+            {
+                Symbol* variable = find_variable(node->token_info.text);
+                if (!variable) {
+                    record_error(node->token_info.line_number, 
+                               "Variable '%s' was not declared", node->token_info.text);
+                }
+                check_program_semantics(node->left_child);
             }
-            check_program_semantics(node->left_child);
             break;
             
         case COMPOUND_ASSIGN_NODE:
             if (node->left_child && node->left_child->node_type == VARIABLE_NODE) {
-                if (!find_variable(node->left_child->token_info.text)) {
+                Symbol* variable = find_variable(node->left_child->token_info.text);
+                if (!variable) {
                     record_error(node->token_info.line_number, 
                                "Variable '%s' was not declared", node->left_child->token_info.text);
                 }
@@ -926,14 +950,15 @@ void check_program_semantics(ASTNode* node) {
             check_program_semantics(node->right_child);
             break;
             
-        case PROGRAM_NODE:
+        case DECLARATION_NODE:
             check_program_semantics(node->left_child);
-            check_program_semantics(node->right_child);
             break;
             
         default:
             break;
     }
+    
+    check_program_semantics(node->next);
 }
 
 void check_for_unused_variables() {
@@ -943,14 +968,6 @@ void check_for_unused_variables() {
                    symbol_table[i].name);
         }
     }
-}
-
-void generate_declaration_code(const char* variable_name, FILE* output) {
-    Symbol* variable = find_variable(variable_name);
-    if (!variable) return;
-    
-    fprintf(output, "    sb r0, %d(r0)\n", variable->memory_location);
-    produce_machine_code("sb", 0, 0, -1, variable->memory_location, output);
 }
 
 void generate_expression_code(ASTNode* node, FILE* output, const char* result_register) {
@@ -977,7 +994,7 @@ void generate_expression_code(ASTNode* node, FILE* output, const char* result_re
                     produce_machine_code("lb", 0, get_register_number(result_register), 
                                        -1, variable->memory_location, output);
                 } else {
-                    fprintf(output, "    # ERROR: Variable %s not found\n", node->token_info.text);
+                    // fprintf(output, "    # error: variable %s not found\n", node->token_info.text);
                 }
             }
             break;
@@ -988,14 +1005,23 @@ void generate_expression_code(ASTNode* node, FILE* output, const char* result_re
                     generate_expression_code(node->left_child, output, result_register);
                     
                     if (strcmp(node->token_info.text, "-") == 0) {
-                        fprintf(output, "    dsub %s, r0, %s\n", result_register, result_register);
-                        produce_machine_code("dsub", 0, get_register_number(result_register), 
+                        fprintf(output, "    dsubu %s, r0, %s\n", result_register, result_register);
+                        produce_machine_code("dsubu", 0, get_register_number(result_register), 
                                            get_register_number(result_register), -1, output);
                     }
                 }
                 else if (node->left_child && node->left_child->node_type == VARIABLE_NODE) {
                     const char* var_name = node->left_child->token_info.text;
                     Symbol* variable = find_variable(var_name);
+
+
+
+
+
+
+
+
+
                     if (variable) {
                         const char* temp_reg = get_register();
                         
@@ -1021,7 +1047,7 @@ void generate_expression_code(ASTNode* node, FILE* output, const char* result_re
                         produce_machine_code("sb", 0, get_register_number(temp_reg), 
                                            -1, variable->memory_location, output);
                         
-                        release_register();
+                        release_register_by_name(temp_reg);
                     }
                 }
             }
@@ -1036,31 +1062,29 @@ void generate_expression_code(ASTNode* node, FILE* output, const char* result_re
                 generate_expression_code(node->right_child, output, right_register);
                 
                 if (strcmp(node->token_info.text, "+") == 0) {
-                    fprintf(output, "    dadd %s, %s, %s\n", result_register, left_register, right_register);
-                    produce_machine_code("dadd", get_register_number(left_register), 
+                    fprintf(output, "    daddu %s, %s, %s\n", result_register, left_register, right_register);
+                    produce_machine_code("daddu", get_register_number(left_register), 
                                        get_register_number(right_register), 
                                        get_register_number(result_register), -1, output);
                 } else if (strcmp(node->token_info.text, "-") == 0) {
-                    fprintf(output, "    dsub %s, %s, %s\n", result_register, left_register, right_register);
-                    produce_machine_code("dsub", get_register_number(left_register), 
+                    fprintf(output, "    dsubu %s, %s, %s\n", result_register, left_register, right_register);
+                    produce_machine_code("dsubu", get_register_number(left_register), 
                                        get_register_number(right_register), 
                                        get_register_number(result_register), -1, output);
                 } else if (strcmp(node->token_info.text, "*") == 0) {
-                    fprintf(output, "    dmult %s, %s\n", left_register, right_register);
-                    produce_machine_code("dmult", get_register_number(left_register), 
-                                       get_register_number(right_register), -1, -1, output);
-                    fprintf(output, "    mflo %s\n", result_register);
-                    produce_machine_code("mflo", -1, -1, get_register_number(result_register), -1, output);
+                    fprintf(output, "    dmulu %s, %s, %s\n", result_register, left_register, right_register);
+                    produce_machine_code("dmulu", get_register_number(left_register), 
+                                       get_register_number(right_register), 
+                                       get_register_number(result_register), -1, output);
                 } else if (strcmp(node->token_info.text, "/") == 0) {
-                    fprintf(output, "    ddiv %s, %s\n", left_register, right_register);
-                    produce_machine_code("ddiv", get_register_number(left_register), 
-                                       get_register_number(right_register), -1, -1, output);
-                    fprintf(output, "    mflo %s\n", result_register);
-                    produce_machine_code("mflo", -1, -1, get_register_number(result_register), -1, output);
+                    fprintf(output, "    ddivu %s, %s, %s\n", result_register, left_register, right_register);
+                    produce_machine_code("ddivu", get_register_number(left_register), 
+                                       get_register_number(right_register), 
+                                       get_register_number(result_register), -1, output);
                 }
                 
-                release_register();
-                release_register();
+                release_register_by_name(left_register);
+                release_register_by_name(right_register);
             }
             break;
         
@@ -1080,22 +1104,29 @@ void generate_unary_operation_code(ASTNode* node, FILE* output) {
         const char* temp_reg = get_register();
         
         fprintf(output, "    lb %s, %d(r0)\n", temp_reg, variable->memory_location);
-        produce_machine_code("lb", 0, get_register_number(temp_reg), -1, variable->memory_location, output);
+        produce_machine_code("lb", 0, get_register_number(temp_reg), 
+                           -1, variable->memory_location, output);
         
         if (strcmp(node->token_info.text, "++") == 0) {
             fprintf(output, "    daddiu %s, %s, 1\n", temp_reg, temp_reg);
-            produce_machine_code("daddiu", get_register_number(temp_reg), get_register_number(temp_reg), 
-                               -1, 1, output);
+            produce_machine_code("daddiu", get_register_number(temp_reg), 
+                               get_register_number(temp_reg), -1, 1, output);
         } else if (strcmp(node->token_info.text, "--") == 0) {
             fprintf(output, "    daddiu %s, %s, -1\n", temp_reg, temp_reg);
-            produce_machine_code("daddiu", get_register_number(temp_reg), get_register_number(temp_reg), 
-                               -1, -1, output);
+            produce_machine_code("daddiu", get_register_number(temp_reg), 
+                               get_register_number(temp_reg), -1, -1, output);
+        } else if (strcmp(node->token_info.text, "+") == 0) {
+        } else if (strcmp(node->token_info.text, "-") == 0) {
+            fprintf(output, "    dsubu %s, r0, %s\n", temp_reg, temp_reg);
+            produce_machine_code("dsubu", 0, get_register_number(temp_reg), 
+                               get_register_number(temp_reg), -1, output);
         }
         
         fprintf(output, "    sb %s, %d(r0)\n", temp_reg, variable->memory_location);
-        produce_machine_code("sb", 0, get_register_number(temp_reg), -1, variable->memory_location, output);
+        produce_machine_code("sb", 0, get_register_number(temp_reg), 
+                           -1, variable->memory_location, output);
         
-        release_register();
+        release_register_by_name(temp_reg);
     }
 }
 
@@ -1108,111 +1139,128 @@ void generate_compound_assignment_code(const char* variable_name, ASTNode* expre
     const char* temp_reg = get_register();
     
     fprintf(output, "    lb %s, %d(r0)\n", temp_reg, variable->memory_location);
-    produce_machine_code("lb", 0, get_register_number(temp_reg), -1, variable->memory_location, output);
+    produce_machine_code("lb", 0, get_register_number(temp_reg), 
+                       -1, variable->memory_location, output);
     
     generate_expression_code(expression, output, result_reg);
     
     if (strcmp(operator, "+=") == 0) {
-        fprintf(output, "    dadd %s, %s, %s\n", temp_reg, temp_reg, result_reg);
-        produce_machine_code("dadd", get_register_number(temp_reg), get_register_number(result_reg), 
+        fprintf(output, "    daddu %s, %s, %s\n", temp_reg, temp_reg, result_reg);
+        produce_machine_code("daddu", get_register_number(temp_reg), 
+                           get_register_number(result_reg), 
                            get_register_number(temp_reg), -1, output);
     } else if (strcmp(operator, "-=") == 0) {
-        fprintf(output, "    dsub %s, %s, %s\n", temp_reg, temp_reg, result_reg);
-        produce_machine_code("dsub", get_register_number(temp_reg), get_register_number(result_reg), 
+        fprintf(output, "    dsubu %s, %s, %s\n", temp_reg, temp_reg, result_reg);
+        produce_machine_code("dsubu", get_register_number(temp_reg), 
+                           get_register_number(result_reg), 
                            get_register_number(temp_reg), -1, output);
     } else if (strcmp(operator, "*=") == 0) {
-        fprintf(output, "    dmult %s, %s\n", temp_reg, result_reg);
-        produce_machine_code("dmult", get_register_number(temp_reg), get_register_number(result_reg), -1, -1, output);
-        fprintf(output, "    mflo %s\n", temp_reg);
-        produce_machine_code("mflo", -1, -1, get_register_number(temp_reg), -1, output);
+        fprintf(output, "    dmulu %s, %s, %s\n", temp_reg, temp_reg, result_reg);
+        produce_machine_code("dmulu", get_register_number(temp_reg), 
+                           get_register_number(result_reg), 
+                           get_register_number(temp_reg), -1, output);
     } else if (strcmp(operator, "/=") == 0) {
-        fprintf(output, "    ddiv %s, %s\n", temp_reg, result_reg);
-        produce_machine_code("ddiv", get_register_number(temp_reg), get_register_number(result_reg), -1, -1, output);
-        fprintf(output, "    mflo %s\n", temp_reg);
-        produce_machine_code("mflo", -1, -1, get_register_number(temp_reg), -1, output);
+        fprintf(output, "    ddivu %s, %s, %s\n", temp_reg, temp_reg, result_reg);
+        produce_machine_code("ddivu", get_register_number(temp_reg), 
+                           get_register_number(result_reg), 
+                           get_register_number(temp_reg), -1, output);
     }
     
     fprintf(output, "    sb %s, %d(r0)\n", temp_reg, variable->memory_location);
-    produce_machine_code("sb", 0, get_register_number(temp_reg), -1, variable->memory_location, output);
+    produce_machine_code("sb", 0, get_register_number(temp_reg), 
+                       -1, variable->memory_location, output);
     
-    release_register();
-    release_register();
+    release_register_by_name(result_reg);
+    release_register_by_name(temp_reg);
 }
 
 void generate_assignment_code(const char* variable_name, ASTNode* expression, FILE* output) {
     Symbol* variable = find_variable(variable_name);
     if (!variable) {
-        fprintf(output, "    # ERROR: Variable %s not found\n", variable_name);
+        fprintf(output, "    # error: variable %s not found\n", variable_name);
         return;
     }
     
     const char* result_register = get_register();
+    
     generate_expression_code(expression, output, result_register);
     
     fprintf(output, "    sb %s, %d(r0)\n", result_register, variable->memory_location);
     produce_machine_code("sb", 0, get_register_number(result_register), 
                         -1, variable->memory_location, output);
     
-    release_register();
+    release_register_by_name(result_register);
 }
 
 void generate_assembly_code(ASTNode* node, FILE* output) {
     if (!node) return;
     
-    
-    static int code_directive_emitted = 0;
-    if (!code_directive_emitted) {
+    static int code_section_emitted = 0;
+    if (!code_section_emitted) {
         fprintf(output, ".code\n");
-        code_directive_emitted = 1;
+        code_section_emitted = 1;
     }
     
-    switch (node->node_type) {
-        case PROGRAM_NODE:
-            
-            ASTNode* current = node;
-            while (current) {
-                if (current->left_child) {
-                    generate_assembly_code(current->left_child, output);
+    ASTNode* current = node;
+    while (current) {
+        if (current->node_type == DECLARATION_NODE) {
+            if (current->left_child) {
+                if (current->left_child->node_type == VARIABLE_NODE) {
+                    Symbol* variable = find_variable(current->left_child->token_info.text);
+                    if (variable) {
+                        fprintf(output, "    sb r0, %d(r0)\n", variable->memory_location);
+                        produce_machine_code("sb", 0, 0, -1, variable->memory_location, output);
+                    }
                 }
-                current = current->right_child;
             }
-            break;
-            
-        case ASSIGNMENT_NODE:
-            generate_assignment_code(node->token_info.text, node->left_child, output);
-            break;
-            
-        case COMPOUND_ASSIGN_NODE:
-            if (node->left_child && node->left_child->node_type == VARIABLE_NODE) {
-                generate_compound_assignment_code(node->left_child->token_info.text, 
-                                                node->right_child, node->token_info.text, output);
-            }
-            break;
-            
-        case UNARY_NODE:
-            generate_unary_operation_code(node, output);
-            break;
-            
-        case VARIABLE_NODE:
-            generate_declaration_code(node->token_info.text, output);
-            break;
-            
-        default:
-            generate_assembly_code(node->left_child, output);
-            generate_assembly_code(node->right_child, output);
-            break;
+        }
+        current = current->next;
+    }
+    
+    current = node;
+    while (current) {
+        switch (current->node_type) {
+            case DECLARATION_NODE:
+                if (current->left_child) {
+                    if (current->left_child->node_type == ASSIGNMENT_NODE) {
+                        generate_assignment_code(current->left_child->token_info.text, 
+                                                current->left_child->left_child, output);
+                    }
+                }
+                break;
+                
+            case ASSIGNMENT_NODE:
+                generate_assignment_code(current->token_info.text, current->left_child, output);
+                break;
+                
+            case COMPOUND_ASSIGN_NODE:
+                if (current->left_child && current->left_child->node_type == VARIABLE_NODE) {
+                    generate_compound_assignment_code(current->left_child->token_info.text, 
+                                                    current->right_child, current->token_info.text, output);
+                }
+                break;
+                
+            case UNARY_NODE:
+                generate_unary_operation_code(current, output);
+                break;
+                
+            default:
+                break;
+        }
+        
+        current = current->next;
     }
 }
 
 void show_generated_code(const char* filename) {
     FILE* file = fopen(filename, "r");
     if (!file) {
-        printf("Could not open the generated file\n");
+        printf("could not open the generated file\n");
         return;
     }
     
     char line[256];
-    printf("\nGenerated Assembly and Machine Code:\n");
+    printf("\ngenerated assembly and machine code:\n");
     while (fgets(line, sizeof(line), file)) {
         printf("%s", line);
     }
@@ -1257,6 +1305,7 @@ const char* get_node_type_name(ASTNodeType type) {
         case UNARY_NODE: return "UNARY_OP";
         case COMPOUND_ASSIGN_NODE: return "COMPOUND_ASSIGN";
         case CHAR_NODE: return "CHAR";
+        case DECLARATION_NODE: return "DECLARATION";
         default: return "UNKNOWN";
     }
 }
@@ -1266,7 +1315,7 @@ void display_program_structure(ASTNode *node, int depth) {
 
     for (int i = 0; i < depth; i++) printf("  ");
 
-    printf("Node Type: %-12s | Token: %-12s | Value: %-8s | Line: %d\n",
+    printf("node type: %-12s | token: %-12s | value: %-8s | line: %d\n",
            get_node_type_name(node->node_type),
            get_token_type_name(node->token_info.type),
            node->token_info.text,
@@ -1274,6 +1323,12 @@ void display_program_structure(ASTNode *node, int depth) {
 
     display_program_structure(node->left_child, depth + 1);
     display_program_structure(node->right_child, depth + 1);
+    
+    if (node->next) {
+        for (int i = 0; i < depth; i++) printf("  ");
+        printf("next statement:\n");
+        display_program_structure(node->next, depth + 1);
+    }
 }
 
 void compile_program(const char* source_code, const char* output_filename) {
@@ -1286,21 +1341,14 @@ void compile_program(const char* source_code, const char* output_filename) {
     
     break_into_tokens(source_code);
     if (error_log.error_count) {
-        printf("\nLexical errors found:\n");
+        printf("\nlexical errors found:\n");
         display_errors();
         return;
     }
-  
-    // printf("Tokens found in program:\n");
-    // for (int i = 0; i < current_token_count; i++) {
-    //     printf("Token: type=%s, value='%s', line=%d\n", 
-    //            get_token_type_name(all_tokens[i].type), 
-    //            all_tokens[i].text, all_tokens[i].line_number);
-    // }
     
     ASTNode* program_structure = parse_program();
     if (error_log.error_count || !program_structure) {
-        printf("Syntax errors found:\n");
+        printf("syntax errors found:\n");
         display_errors();
         free_program_tree(program_structure);
         return;
@@ -1309,18 +1357,15 @@ void compile_program(const char* source_code, const char* output_filename) {
     check_program_semantics(program_structure);
     check_for_unused_variables();
     if (error_log.error_count) {
-        printf("Semantic errors found:\n");
+        printf("semantic errors found:\n");
         display_errors();
         free_program_tree(program_structure);
         return;
     }
 
-    // printf("\nProgram Structure:\n");
-    // display_program_structure(program_structure, 0);
-
     FILE* output_file = fopen(output_filename, "w");
     if (!output_file) {
-        fprintf(stderr, "Cannot create output file: %s\n", output_filename);
+        fprintf(stderr, "cannot create output file: %s\n", output_filename);
         free_program_tree(program_structure);
         return;
     }
@@ -1329,7 +1374,7 @@ void compile_program(const char* source_code, const char* output_filename) {
     generate_assembly_code(program_structure, output_file);
     fclose(output_file);
     
-    printf("Compilation successful! Output file: %s\n", output_filename);
+    printf("compilation successful! output file: %s\n", output_filename);
     show_generated_code(output_filename);
     free_program_tree(program_structure);
 }
@@ -1337,13 +1382,13 @@ void compile_program(const char* source_code, const char* output_filename) {
 char* read_source_code() {
     FILE* source_file = fopen("code.b", "r");
     if (!source_file) {
-        printf("Could not open source file: code.b\n");
+        printf("could not open source file: code.b\n");
         return NULL;
     }
     
     char* code = malloc(50000);
     if (!code) {
-        printf("Not enough memory to read source code\n");
+        printf("not enough memory to read source code\n");
         fclose(source_file);
         return NULL;
     }
@@ -1360,12 +1405,12 @@ char* read_source_code() {
 }
 
 int main() {
-    printf("Submitted by Kian and Charls\n");
+    printf("submitted by kian and charls\n");
     
     char* source_code = read_source_code();
     if (!source_code) return 1;
     
-    printf("Source Code:\n%s\n\n", source_code);
+    printf("source code:\n%s\n\n", source_code);
     compile_program(source_code, "output.s");
     
     free(source_code);
