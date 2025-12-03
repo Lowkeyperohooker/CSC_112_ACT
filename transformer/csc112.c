@@ -81,12 +81,12 @@ Instruction supported_instructions[] = {
     {"daddiu", 0b011001, 1, 0, 0b000000},
     {"lb",     0b100000, 1, 0, 0b000000},
     {"sb",     0b101000, 1, 0, 0b000000},
+    
     {"daddu",  0b000000, 0, 0b00000, 0b101101},
     {"dsubu",  0b000000, 0, 0b00000, 0b101111},
-    {"dmul",   0b000000, 0, 0b00010, 0b011100},
     {"dmulu",  0b000000, 0, 0b00010, 0b011101},
-    {"ddiv",   0b000000, 0, 0b00010, 0b011110},
-    {"ddivu",  0b000000, 0, 0b00010, 0b011111}
+    {"ddivu",  0b000000, 0, 0b00010, 0b011111},
+    {"mflo",   0b000000, 0, 0b00000, 0b010010}
 };
 
 int find_instruction(const char* instruction_name) {
@@ -111,8 +111,15 @@ unsigned int create_instruction_code(const char* instruction_name, int source_re
         return (inst.opcode_value << 26) | (source_reg << 21) | 
                (target_reg << 16) | immediate_16bit;
     } else {  
-        return (inst.opcode_value << 26) | (source_reg << 21) | (target_reg << 16) |
-               (dest_reg << 11) | inst.function_code;
+        if (strcmp(instruction_name, "mflo") == 0) {
+            return (inst.opcode_value << 26) | (dest_reg << 11) | inst.function_code;
+        } else if (strcmp(instruction_name, "dmulu") == 0 || strcmp(instruction_name, "ddivu") == 0) {
+            return (inst.opcode_value << 26) | (source_reg << 21) | (target_reg << 16) |
+                   (inst.sub_code << 6) | inst.function_code;
+        } else {
+            return (inst.opcode_value << 26) | (source_reg << 21) | (target_reg << 16) |
+                   (dest_reg << 11) | inst.function_code;
+        }
     }
 }
 
@@ -129,7 +136,7 @@ void produce_machine_code(const char* instruction_name, int source_reg, int targ
                                                              target_reg, dest_reg, immediate_value);
     
     if (machine_instruction != 0) {
-        fprintf(output, "# ");
+        fprintf(output, " ");
         display_binary_code(machine_instruction, output);
         fprintf(output, "\n");
     }
@@ -728,21 +735,40 @@ ASTNode* parse_declaration() {
             return NULL;
         }
         
-        if (!add_variable(variable_token.text, variable_token.line_number)) {
-            return NULL;
-        }
+        bool variable_added = add_variable(variable_token.text, variable_token.line_number);
         
         ASTNode* assignment_node = NULL;
         
-        if (peek_next_token().type == ASSIGN) {
-            get_next_token();
-            ASTNode* expression = parse_expression();
-            if (!expression) {
-                record_error(variable_token.line_number, "Expected expression after '='");
-                return NULL;
+        Token next_token = peek_next_token();
+        
+        if (next_token.type == ASSIGN || 
+            next_token.type == PLUS_ASSIGN || 
+            next_token.type == MINUS_ASSIGN ||
+            next_token.type == MULTIPLY_ASSIGN ||
+            next_token.type == DIVIDE_ASSIGN) {
+            
+            Token assign_token = get_next_token();
+            
+            if (assign_token.type != ASSIGN) {
+                record_error(assign_token.line_number, 
+                           "Cannot use compound assignment '%s' in variable declaration", 
+                           assign_token.text);
+                ASTNode* expr = parse_expression();
+                if (expr) free_program_tree(expr);
+                
+                assignment_node = create_tree_node(VARIABLE_NODE, variable_token, NULL, NULL);
+            } else {
+                ASTNode* expression = parse_expression();
+                if (!expression) {
+                    record_error(variable_token.line_number, "Expected expression after '='");
+                    expression = create_tree_node(NUMBER_NODE, (Token){NUMBER, "0", variable_token.line_number}, NULL, NULL);
+                }
+                
+                if (variable_added) {
+                    mark_variable_initialized(variable_token.text);
+                }
+                assignment_node = create_tree_node(ASSIGNMENT_NODE, variable_token, expression, NULL);
             }
-            mark_variable_initialized(variable_token.text);
-            assignment_node = create_tree_node(ASSIGNMENT_NODE, variable_token, expression, NULL);
         } else {
             assignment_node = create_tree_node(VARIABLE_NODE, variable_token, NULL, NULL);
         }
@@ -813,9 +839,42 @@ ASTNode* parse_statement() {
         Token lookahead = (current_token_position + 1 < current_token_count) ? 
                          all_tokens[current_token_position + 1] : all_tokens[current_token_count - 1];
         
-        if (lookahead.type == ASSIGN || lookahead.type == PLUS_ASSIGN || 
-            lookahead.type == MINUS_ASSIGN || lookahead.type == MULTIPLY_ASSIGN || 
-            lookahead.type == DIVIDE_ASSIGN) {
+        if (lookahead.type == PLUS_ASSIGN || lookahead.type == MINUS_ASSIGN || 
+            lookahead.type == MULTIPLY_ASSIGN || lookahead.type == DIVIDE_ASSIGN) {
+            
+            Token var_token = get_next_token();
+            Token op_token = get_next_token();
+            
+            Symbol* var = find_variable(var_token.text);
+            if (!var) {
+                record_error(var_token.line_number, "Variable '%s' was not declared", var_token.text);
+                while (peek_next_token().type != SEMICOLON && peek_next_token().type != END_OF_FILE) {
+                    get_next_token();
+                }
+                if (peek_next_token().type == SEMICOLON) get_next_token();
+                return NULL;
+            }
+            
+            mark_variable_used(var_token.text);
+            
+            ASTNode* expression = parse_expression();
+            if (!expression) {
+                record_error(op_token.line_number, "Expected expression after compound assignment operator");
+                return NULL;
+            }
+            
+            ASTNode* compound_assign = create_tree_node(COMPOUND_ASSIGN_NODE, op_token,
+                create_tree_node(VARIABLE_NODE, var_token, NULL, NULL),
+                expression);
+            
+            if (!expect_token(SEMICOLON, ";")) {
+                free_program_tree(compound_assign);
+                return NULL;
+            }
+            
+            return compound_assign;
+        }
+        else if (lookahead.type == ASSIGN) {
             ASTNode* assignment = parse_assignment();
             if (assignment && !expect_token(SEMICOLON, ";")) {
                 free_program_tree(assignment);
@@ -993,8 +1052,6 @@ void generate_expression_code(ASTNode* node, FILE* output, const char* result_re
                     fprintf(output, "    lb %s, %d(r0)\n", result_register, variable->memory_location);
                     produce_machine_code("lb", 0, get_register_number(result_register), 
                                        -1, variable->memory_location, output);
-                } else {
-                    // fprintf(output, "    # error: variable %s not found\n", node->token_info.text);
                 }
             }
             break;
@@ -1013,15 +1070,6 @@ void generate_expression_code(ASTNode* node, FILE* output, const char* result_re
                 else if (node->left_child && node->left_child->node_type == VARIABLE_NODE) {
                     const char* var_name = node->left_child->token_info.text;
                     Symbol* variable = find_variable(var_name);
-
-
-
-
-
-
-
-
-
                     if (variable) {
                         const char* temp_reg = get_register();
                         
@@ -1072,15 +1120,17 @@ void generate_expression_code(ASTNode* node, FILE* output, const char* result_re
                                        get_register_number(right_register), 
                                        get_register_number(result_register), -1, output);
                 } else if (strcmp(node->token_info.text, "*") == 0) {
-                    fprintf(output, "    dmulu %s, %s, %s\n", result_register, left_register, right_register);
+                    fprintf(output, "    dmulu %s, %s\n", left_register, right_register);
                     produce_machine_code("dmulu", get_register_number(left_register), 
-                                       get_register_number(right_register), 
-                                       get_register_number(result_register), -1, output);
+                                       get_register_number(right_register), -1, -1, output);
+                    fprintf(output, "    mflo %s\n", result_register);
+                    produce_machine_code("mflo", -1, -1, get_register_number(result_register), -1, output);
                 } else if (strcmp(node->token_info.text, "/") == 0) {
-                    fprintf(output, "    ddivu %s, %s, %s\n", result_register, left_register, right_register);
+                    fprintf(output, "    ddivu %s, %s\n", left_register, right_register);
                     produce_machine_code("ddivu", get_register_number(left_register), 
-                                       get_register_number(right_register), 
-                                       get_register_number(result_register), -1, output);
+                                       get_register_number(right_register), -1, -1, output);
+                    fprintf(output, "    mflo %s\n", result_register);
+                    produce_machine_code("mflo", -1, -1, get_register_number(result_register), -1, output);
                 }
                 
                 release_register_by_name(left_register);
@@ -1137,6 +1187,7 @@ void generate_compound_assignment_code(const char* variable_name, ASTNode* expre
     
     const char* result_reg = get_register();
     const char* temp_reg = get_register();
+    const char* mflo_temp_reg = get_register();
     
     fprintf(output, "    lb %s, %d(r0)\n", temp_reg, variable->memory_location);
     produce_machine_code("lb", 0, get_register_number(temp_reg), 
@@ -1155,15 +1206,25 @@ void generate_compound_assignment_code(const char* variable_name, ASTNode* expre
                            get_register_number(result_reg), 
                            get_register_number(temp_reg), -1, output);
     } else if (strcmp(operator, "*=") == 0) {
-        fprintf(output, "    dmulu %s, %s, %s\n", temp_reg, temp_reg, result_reg);
+        fprintf(output, "    dmulu %s, %s\n", temp_reg, result_reg);
         produce_machine_code("dmulu", get_register_number(temp_reg), 
-                           get_register_number(result_reg), 
+                           get_register_number(result_reg), -1, -1, output);
+        fprintf(output, "    mflo %s\n", mflo_temp_reg);
+        produce_machine_code("mflo", -1, -1, get_register_number(mflo_temp_reg), -1, output);
+        fprintf(output, "    daddu %s, %s, r0\n", temp_reg, mflo_temp_reg);
+        produce_machine_code("daddu", get_register_number(mflo_temp_reg), 0, 
                            get_register_number(temp_reg), -1, output);
+        release_register_by_name(mflo_temp_reg);
     } else if (strcmp(operator, "/=") == 0) {
-        fprintf(output, "    ddivu %s, %s, %s\n", temp_reg, temp_reg, result_reg);
+        fprintf(output, "    ddivu %s, %s\n", temp_reg, result_reg);
         produce_machine_code("ddivu", get_register_number(temp_reg), 
-                           get_register_number(result_reg), 
+                           get_register_number(result_reg), -1, -1, output);
+        fprintf(output, "    mflo %s\n", mflo_temp_reg);
+        produce_machine_code("mflo", -1, -1, get_register_number(mflo_temp_reg), -1, output);
+        fprintf(output, "    daddu %s, %s, r0\n", temp_reg, mflo_temp_reg);
+        produce_machine_code("daddu", get_register_number(mflo_temp_reg), 0, 
                            get_register_number(temp_reg), -1, output);
+        release_register_by_name(mflo_temp_reg);
     }
     
     fprintf(output, "    sb %s, %d(r0)\n", temp_reg, variable->memory_location);
