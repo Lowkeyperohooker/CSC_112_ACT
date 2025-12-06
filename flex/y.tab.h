@@ -69,10 +69,9 @@ extern int yydebug;
      MODULO_ASSIGN = 278,
      STRING_LITERAL = 279,
      INTEGER = 280,
-     CHAR_LITERAL = 281,
-     IDENTIFIER = 282,
-     ERROR = 283,
-     UMINUS = 284
+     IDENTIFIER = 281,
+     ERROR_CHAR = 282,
+     UMINUS = 283
    };
 #endif
 
@@ -81,15 +80,14 @@ extern int yydebug;
 typedef union YYSTYPE
 {
 /* Line 2058 of yacc.c  */
-#line 37 "y.y"
+#line 34 "y.y"
 
     int num;
     char *str;
-    char op;  /* For compound assignment operator character */
 
 
 /* Line 2058 of yacc.c  */
-#line 93 "y.tab.h"
+#line 91 "y.tab.h"
 } YYSTYPE;
 # define YYSTYPE_IS_TRIVIAL 1
 # define yystype YYSTYPE /* obsolescent; will be withdrawn */
