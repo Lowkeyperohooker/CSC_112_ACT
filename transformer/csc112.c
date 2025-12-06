@@ -124,6 +124,7 @@ unsigned int create_instruction_code(const char* instruction_name, int source_re
 }
 
 void display_binary_code(unsigned int value, FILE* output) {
+    fprintf(output, ";");
     for (int i = 31; i >= 0; i--) {
         fprintf(output, "%d", (value >> i) & 1);
         if (i % 4 == 0 && i != 0) fprintf(output, " ");
@@ -452,12 +453,13 @@ void break_into_tokens(const char* source_code) {
             case '(': save_token(LEFT_PAREN, "(", current_line); position++; break;
             case ')': save_token(RIGHT_PAREN, ")", current_line); position++; break;
             case ',': save_token(COMMA, ",", current_line); position++; break;
-            default: 
+            default: { 
                 char unknown_char[2] = {source_code[position], '\0'};
                 save_token(UNKNOWN_TOKEN, unknown_char, current_line);
                 record_error(current_line, "Unexpected character '%c'", source_code[position]);
                 position++;
                 break;
+            } 
         }
     }
     save_token(END_OF_FILE, "", current_line);
@@ -961,8 +963,8 @@ void check_program_semantics(ASTNode* node) {
                     record_error(node->token_info.line_number, 
                                "Variable '%s' was not declared", node->token_info.text);
                 } else if (!variable->is_initialized) {
-                    fprintf(stderr, "Warning at line %d: Variable '%s' might not have a value\n", 
-                           node->token_info.line_number, node->token_info.text);
+                    // fprintf(stderr, "Warning at line %d: Variable '%s' might not have a value\n", 
+                    //        node->token_info.line_number, node->token_info.text);
                 }
             }
             break;
@@ -1023,8 +1025,8 @@ void check_program_semantics(ASTNode* node) {
 void check_for_unused_variables() {
     for (int i = 0; i < symbols_found; i++) {
         if (!symbol_table[i].is_used) {
-            fprintf(stderr, "Warning: Variable '%s' was declared but never used\n", 
-                   symbol_table[i].name);
+            // fprintf(stderr, "Warning: Variable '%s' was declared but never used\n", 
+            //        symbol_table[i].name);
         }
     }
 }
@@ -1321,7 +1323,7 @@ void show_generated_code(const char* filename) {
     }
     
     char line[256];
-    printf("\ngenerated assembly and machine code:\n");
+    // printf("\ngenerated assembly and machine code:\n");
     while (fgets(line, sizeof(line), file)) {
         printf("%s", line);
     }
@@ -1435,43 +1437,61 @@ void compile_program(const char* source_code, const char* output_filename) {
     generate_assembly_code(program_structure, output_file);
     fclose(output_file);
     
-    printf("compilation successful! output file: %s\n", output_filename);
+    // printf("compilation successful! output file: %s\n", output_filename);
     show_generated_code(output_filename);
     free_program_tree(program_structure);
 }
 
 char* read_source_code() {
-    FILE* source_file = fopen("code.b", "r");
-    if (!source_file) {
-        printf("could not open source file: code.b\n");
-        return NULL;
-    }
-    
+    // 1. Allocate memory first
     char* code = malloc(50000);
     if (!code) {
-        printf("not enough memory to read source code\n");
-        fclose(source_file);
+        printf("Error: Not enough memory to read source code.\n");
         return NULL;
     }
-    
-    code[0] = '\0';
-    char line[250];
-    
+    code[0] = '\0'; // Initialize empty string
+
+    // 2. Try to open the file "code.b"
+    FILE* source_file = fopen("code.b", "r");
+
+    // 3. Logic: If file exists, use it. If not, use Custom Input (stdin).
+    if (source_file) {
+        // printf("File 'code.b' found. Reading from file...\n");
+    } else {
+        // printf("File 'code.b' not found.\n");
+        // printf(">> Reading from Custom Input (Standard Input).\n");
+        // printf(">> Type your code below. Press Ctrl+D (Linux/Mac) or Ctrl+Z (Windows) on a new line to finish.\n");
+        // printf("------------------------------------------------------------\n");
+        source_file = stdin; // Switch to standard input
+    }
+
+    // 4. Read line by line until End of File (EOF)
+    char line[256];
     while (fgets(line, sizeof(line), source_file)) {
+        // Safety check to prevent buffer overflow
+        if (strlen(code) + strlen(line) >= 50000) {
+            printf("Error: Source code exceeds maximum size (50,000 characters).\n");
+            break;
+        }
         strcat(code, line);
     }
-    
-    fclose(source_file);
+
+    // 5. Clean up
+    // Only close the file if it wasn't stdin (closing stdin can cause issues)
+    if (source_file != stdin) {
+        fclose(source_file);
+    }
+
     return code;
 }
 
 int main() {
-    printf("submitted by kian and charls\n");
+    // printf("submitted by kian and charls\n");
     
     char* source_code = read_source_code();
     if (!source_code) return 1;
     
-    printf("source code:\n%s\n\n", source_code);
+    // printf("source code:\n%s\n\n", source_code);
     compile_program(source_code, "output.s");
     
     free(source_code);
