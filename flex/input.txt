@@ -1,0 +1,26 @@
+numero a = 10
+numero b = 5
+
+ilimbag "Testing:"
+
+a += 3
+ilimbag "a += 3: ", a
+
+b *= 2
+ilimbag "b *= 2: ", b
+
+++a
+ilimbag "++a: ", a
+
+b--
+ilimbag "b--: ", b
+
+numero c = a + b * 2
+ilimbag "c = a + b * 2 = ", c
+
+sulat pangalan = "Tagalog"
+ilimbag "Ang wika ay: %s", pangalan
+
+a + b * 3
+
+ilimbag "%d", a

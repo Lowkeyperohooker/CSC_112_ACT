@@ -1,0 +1,18 @@
+numero a = 10
+numero b = 20
+sulat c = 'A'
+sulat d = 'Z'
+
+ilimbag a
+ilimbag b
+ilimbag c
+ilimbag d
+
+a = a + 5
+ilimbag a
+
+c = 'B'
+ilimbag c
+
+numero result = a + b
+ilimbag result
