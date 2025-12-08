@@ -823,7 +823,7 @@ YY_RULE_SETUP
 { 
     yylval.num = atoi(yytext); 
     return INTEGER; 
-}       
+}        
 	YY_BREAK
 case 27:
 YY_RULE_SETUP

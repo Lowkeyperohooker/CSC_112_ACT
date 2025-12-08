@@ -9,6 +9,9 @@ extern int yylex();
 extern void yyerror(const char *s);
 extern int yylineno;
 
+/* Declare the function from tools.c */
+extern int checkError(int a, int b);
+
 /* Symbol Table Definition */
 typedef struct {
     char name[50];
@@ -82,7 +85,9 @@ program: /* empty */
     | program line
     ;
 
+/* === THE FIX FOR THE NEWLINE ERROR === */
 line: statement NEWLINE 
+    | statement  /* Allows file to end without newline */
     | NEWLINE 
     ;
 
@@ -188,6 +193,7 @@ assignment: IDENTIFIER ASSIGN expr {
         var->is_initialized = 1;
         free($1);
     }
+    /* POSTFIX: a++ */
     | IDENTIFIER INCREMENT {
         if (!varExists($1)) yyerror("Undeclared variable");
         symbol *var = getSymbol($1);
@@ -196,6 +202,7 @@ assignment: IDENTIFIER ASSIGN expr {
         else yyerror("++ only for numeric types");
         free($1);
     }
+    /* POSTFIX: a-- */
     | IDENTIFIER DECREMENT {
         if (!varExists($1)) yyerror("Undeclared variable");
         symbol *var = getSymbol($1);
@@ -203,6 +210,24 @@ assignment: IDENTIFIER ASSIGN expr {
         else if (strcmp(var->type, "float") == 0) var->value.float_val -= 1.0;
         else yyerror("-- only for numeric types");
         free($1);
+    }
+    /* PREFIX: ++a */
+    | INCREMENT IDENTIFIER {
+        if (!varExists($2)) yyerror("Undeclared variable");
+        symbol *var = getSymbol($2);
+        if (strcmp(var->type, "int") == 0) var->value.int_val++;
+        else if (strcmp(var->type, "float") == 0) var->value.float_val += 1.0;
+        else yyerror("++ only for numeric types");
+        free($2);
+    }
+    /* PREFIX: --a */
+    | DECREMENT IDENTIFIER {
+        if (!varExists($2)) yyerror("Undeclared variable");
+        symbol *var = getSymbol($2);
+        if (strcmp(var->type, "int") == 0) var->value.int_val--;
+        else if (strcmp(var->type, "float") == 0) var->value.float_val -= 1.0;
+        else yyerror("-- only for numeric types");
+        free($2);
     }
     ;
 
@@ -242,6 +267,7 @@ print_item: STRING_LITERAL {
         
         $$->value.expr_val.type = $1.type;
         
+        /* Updated to match your types.h nested structure */
         if ($1.type == 0) { // int
             $$->value.expr_val.value.i_val = $1.i_val;
         } else if ($1.type == 1) { // float
@@ -334,7 +360,8 @@ void update_variable(char *name, ExprVal val, char op) {
             case '-': var->value.int_val -= val_i; break;
             case '*': var->value.int_val *= val_i; break;
             case '/': 
-                if (val_i == 0) yyerror("Division by zero");
+                // Using tools.c function for integer check
+                if (checkError(var->value.int_val, val_i) == -1) yyerror("Division by zero");
                 var->value.int_val /= val_i; 
                 break;
         }
@@ -371,8 +398,6 @@ ExprVal do_math(ExprVal v1, ExprVal v2, char op) {
     float f1 = (v1.type == 0) ? (float)v1.i_val : v1.f_val;
     float f2 = (v2.type == 0) ? (float)v2.i_val : v2.f_val;
 
-    /* Removed Modulo Case */
-
     res.type = is_float ? 1 : 0;
 
     switch(op) {
@@ -389,9 +414,14 @@ ExprVal do_math(ExprVal v1, ExprVal v2, char op) {
             else res.i_val = v1.i_val * v2.i_val; 
             break;
         case '/': 
-            if (f2 == 0) yyerror("Division by zero");
-            if(is_float) res.f_val = f1 / f2; 
-            else res.i_val = v1.i_val / v2.i_val; 
+            if (is_float) {
+                if (f2 == 0.0) yyerror("Division by zero");
+                res.f_val = f1 / f2;
+            } else {
+                // Using tools.c function for integer check
+                if (checkError(v1.i_val, v2.i_val) == -1) yyerror("Division by zero");
+                res.i_val = v1.i_val / v2.i_val; 
+            }
             break;
     }
     return res;
@@ -472,6 +502,7 @@ void execute_print(print_item *list) {
                 printf("%c", current->value.char_val);
                 break;
             case PRINT_EXPR:
+                // Access path updated for nested struct in your types.h
                 if (current->value.expr_val.type == 1) { // Float
                     printf("%.2f", current->value.expr_val.value.f_val);
                 } else if (current->value.expr_val.type == 0) { // Int

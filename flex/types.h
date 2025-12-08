@@ -1,7 +1,7 @@
 #ifndef TYPES_H
 #define TYPES_H
 
-#include <stdlib.h> /* Needed for free/malloc declarations if used in inline functions */
+#include <stdlib.h> 
 
 /* Definition for Math Expressions */
 typedef struct {

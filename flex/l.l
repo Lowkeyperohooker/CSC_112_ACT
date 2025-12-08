@@ -54,7 +54,7 @@ desimal         { return desimal; }
 [0-9]+          { 
     yylval.num = atoi(yytext); 
     return INTEGER; 
-}       
+}        
 
 [0-9]*\.[0-9]+  { 
     yylval.float_num = atof(yytext); 

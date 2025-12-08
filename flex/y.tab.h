@@ -83,7 +83,7 @@ extern int yydebug;
 typedef union YYSTYPE
 {
 /* Line 2058 of yacc.c  */
-#line 47 "y.y"
+#line 50 "y.y"
 
     int num;
     float float_num;

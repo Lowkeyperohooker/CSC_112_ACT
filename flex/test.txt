@@ -16,6 +16,13 @@ x /= 5
 desimal t = 5 + -3
 t += + - + - + 1
 
+++t
+t++
+--t
+t--
+
+ilimbag "T: ", t
+
 // Python-style print statements
 ilimbag x
 ilimbag y

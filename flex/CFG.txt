@@ -1,43 +1,98 @@
 LANGUAGE SPECIFICATION
 TOKENS (LEXICAL UNITS)
 
-KEYWORDS: ilimbag : Print command numero : Integer type declaration desimal : Float type declaration letra : Character type declaration sulat : String type declaration
+KEYWORDS: ilimbag : Print command 
+numero : Integer type declaration 
+desimal : Float type declaration 
+letra : Character type declaration 
+sulat : String type declaration
 
-OPERATORS & ASSIGNMENT: = : ASSIGN
+OPERATORS & ASSIGNMENT:
+       = : ASSIGN
+       + : PLUS
+       - : MINUS
+       * : MULTIPLY
+       / : DIVIDE
+       ++ : INCREMENT
+       -- : DECREMENT
+       += : PLUS_ASSIGN 
+       -= : MINUS_ASSIGN
+       *= : MULTIPLY_ASSIGN
+       /= : DIVIDE_ASSIGN
 
-       : PLUS
-       : MINUS
-: MULTIPLY / : DIVIDE ++ : INCREMENT -- : DECREMENT += : PLUS_ASSIGN -= : MINUS_ASSIGN *= : MULTIPLY_ASSIGN /= : DIVIDE_ASSIGN
+SEPARATORS & GROUPING:
+       , : COMMA
+       ( : LPAREN
+       ) : RPAREN
+       \n : NEWLINE
 
-SEPARATORS & GROUPING: , : COMMA ( : LPAREN ) : RPAREN \n : NEWLINE
-
-LITERALS & IDENTIFIERS: INTEGER : Sequence of digits (e.g., 10, 42) FLOAT : Decimal numbers (e.g., 3.14, 0.5) STRING_LITERAL: Double-quoted text (e.g., "Hello World") CHARACTER : Single-quoted character (e.g., 'A') IDENTIFIER : Variable names (starts with letter/underscore)
+LITERALS & IDENTIFIERS:
+       INTEGER : Sequence of digits (e.g., 10, 42)
+       FLOAT : Decimal numbers (e.g., 3.14, 0.5)
+       STRING_LITERAL: Double-quoted text (e.g., "Hello World")
+       CHARACTER : Single-quoted character (e.g., 'A')
+       IDENTIFIER : Variable names (starts with letter/underscore)
 
 CONTEXT-FREE GRAMMAR (BNF NOTATION)
 
 <non-terminal> ::= definition
 
-<program> ::= <program> <line> | ε
+<program> ::= <program> <line>
+            | ε
 
-<line> ::= <statement> NEWLINE | NEWLINE
+<line> ::= <statement> NEWLINE
+         | NEWLINE
 
-<statement> ::= <declaration> | <assignment> | <print_stmt> | <expr>
+<statement> ::= <declaration>
+              | <assignment>
+              | <print_stmt>
+              | <expr>
 
-<declaration> ::= numero IDENTIFIER | numero IDENTIFIER = <expr> | desimal IDENTIFIER | desimal IDENTIFIER = <expr> | letra IDENTIFIER | letra IDENTIFIER = <char_val> | sulat IDENTIFIER | sulat IDENTIFIER = <string_val>
+<declaration> ::= numero IDENTIFIER
+                | numero IDENTIFIER = <expr>
+                | desimal IDENTIFIER
+                | desimal IDENTIFIER = <expr>
+                | letra IDENTIFIER
+                | letra IDENTIFIER = <char_val>
+                | sulat IDENTIFIER
+                | sulat IDENTIFIER = <string_val>
 
-<assignment> ::= IDENTIFIER = <expr> | IDENTIFIER += <expr> | IDENTIFIER -= <expr> | IDENTIFIER *= <expr> | IDENTIFIER /= <expr> | IDENTIFIER = <char_val> | IDENTIFIER = <string_val> | IDENTIFIER ++ | IDENTIFIER --
+<assignment> ::= IDENTIFIER = <expr>
+               | IDENTIFIER += <expr>
+               | IDENTIFIER -= <expr>
+               | IDENTIFIER *= <expr>
+               | IDENTIFIER /= <expr>
+               | IDENTIFIER = <char_val>
+               | IDENTIFIER = <string_val>
+               | IDENTIFIER ++
+               | IDENTIFIER --
+               | ++ IDENTIFIER
+               | -- IDENTIFIER
 
-<print_stmt> ::= ilimbag <print_items> | ilimbag
+<print_stmt> ::= ilimbag <print_items>
+               | ilimbag
 
-<print_items> ::= <print_item> | <print_items> , <print_item>
+<print_items> ::= <print_item>
+                | <print_items> , <print_item>
 
-<print_item> ::= STRING_LITERAL | CHARACTER | <expr>
+<print_item> ::= STRING_LITERAL
+               | CHARACTER
+               | <expr>
 
-<expr> ::= <term> | <expr> + <term> | <expr> - <term>
+<expr> ::= <term>
+         | <expr> + <term>
+         | <expr> - <term>
 
-<term> ::= <factor> | <term> * <factor> | <term> / <factor>
+<term> ::= <factor>
+         | <term> * <factor>
+         | <term> / <factor>
 
-<factor> ::= INTEGER | FLOAT | IDENTIFIER | - <factor> (Unary Minus) | + <factor> (Unary Plus) | ( <expr> )
+<factor> ::= INTEGER
+           | FLOAT
+           | IDENTIFIER
+           | - <factor>
+           | + <factor>
+           | ( <expr> )
 
 <string_val> ::= STRING_LITERAL
 
