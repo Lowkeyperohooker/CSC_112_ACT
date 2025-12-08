@@ -1,18 +1,24 @@
-numero a = 10
-numero b = 20
-sulat c = 'A'
-sulat d = 'Z'
+// Variable declarations
+numero x = 10
+desimal y = 3.14
+letra c = 'A'
+sulat name = "Hello World"
 
-ilimbag a
-ilimbag b
-ilimbag c
-ilimbag d
-
-a = a + 5
-ilimbag a
-
+// Operations
+x = x + 5
+y = y * 2.0
 c = 'B'
-ilimbag c
 
-numero result = a + b
+// Print statements
+ilimbag x                 // Prints: 15     
+ilimbag y                 // Prints: 6.28
+ilimbag c                 // Prints: B
+ilimbag name             // Prints: Hello World
+ilimbag "Value: %d", x   // Prints: Value: 15
+ilimbag "Pi: %.2f", y    // Prints: Pi: 6.28
+ilimbag "Char: %c", c    // Prints: Char: B
+ilimbag "Name: %s", name // Prints: Name: Hello World
+
+// Mixed operations
+desimal result = x + y   // 15 + 6.28 = 21.28
 ilimbag result

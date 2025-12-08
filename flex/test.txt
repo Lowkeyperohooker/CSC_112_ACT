@@ -1,0 +1,35 @@
+// Variable declarations
+numero x = 10
+desimal y = 3.14
+letra c = 'A'
+sulat name = "Hello World"
+
+// Operations
+x = x + 5
+y = y * 2.0
+c = 'B'
+
+// Python-style print statements
+ilimbag x
+ilimbag y
+ilimbag c
+ilimbag name
+ilimbag "Value:", x
+ilimbag "Pi:", y
+ilimbag "Char:", c
+ilimbag "Name:", name
+
+// Multiple items in print
+ilimbag x, "number", y, "float"
+ilimbag "All values:", x, y, c, name
+
+// Expressions in print
+ilimbag "Sum:", x + y
+ilimbag "Product:", x * y
+
+// Mixed operations
+desimal result = x + y
+ilimbag "Result:", result
+
+// Empty print
+ilimbag 

@@ -1,68 +1,79 @@
 %{
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
-#include "y.tab.h"
-
-void yyerror(const char *s);
-int line_no = 1;
+#include <stdlib.h>
+#include "types.h"  /* <--- Include types first */
+#include "y.tab.h"  /* <--- Include Yacc header second */
 %}
 
 %option noyywrap
 %option yylineno
 
-%x COMMENT
-
 %%
 
-[ \t]+                   ;   /* ignore spaces/tabs */
-[\r]+                    ;   /* ignore carriage returns */
-\n                       {  line_no++; return NEWLINE; }
+[ \t]+          ; 
+\/\/.* ;  
+\n              { return NEWLINE; }
 
-"//".*                   ;   /* line comments */
-"/*"                     {  BEGIN(COMMENT); }
-<COMMENT>"*/"            {  BEGIN(INITIAL); }
-<COMMENT>\n              {  line_no++; }
-<COMMENT>.               ;
-<COMMENT><<EOF>>         {  yyerror("Unterminated comment"); yyterminate(); }
+","             { return COMMA; }
+";"             { return SEMICOLON; }
+"="             { return ASSIGN; }
+"+"             { return PLUS; }
+"-"             { return MINUS; }
+"*"             { return MULTIPLY; }
+"/"             { return DIVIDE; }
+"%"             { return MODULO; }
+"++"            { return INCREMENT; }
+"--"            { return DECREMENT; }
 
-"ilimbag"                {  return ilimbag; }
-"numero"                 {  return numero; }
-"sulat"                  {  return sulat; }
+"+="            { return PLUS_ASSIGN; }
+"-="            { return MINUS_ASSIGN; }
+"*="            { return MULTIPLY_ASSIGN; }
+"/="            { return DIVIDE_ASSIGN; }
+"%="            { return MODULO_ASSIGN; }
 
-"+"                      {  return PLUS; }
-"-"                      {  return MINUS; }
-"*"                      {  return MULTIPLY; }
-"/"                      {  return DIVIDE; }
-"%"                      {  return MODULO; }
+"("             { return LPAREN; }
+")"             { return RPAREN; }
 
-"++"                     {  return INCREMENT; }
-"--"                     {  return DECREMENT; }
+ilimbag         { return ilimbag; }
+numero          { return numero; }
+sulat           { return sulat; }
+letra           { return letra; }
+desimal         { return desimal; }
 
-"="                      {  return ASSIGN; }
-"+="                     {  return PLUS_ASSIGN; }
-"-="                     {  return MINUS_ASSIGN; }
-"*="                     {  return MULTIPLY_ASSIGN; }
-"/="                     {  return DIVIDE_ASSIGN; }
-"%="                     {  return MODULO_ASSIGN; }
-
-"("                      {  return LPAREN; }
-")"                      {  return RPAREN; }
-","                      {  return COMMA; }
-";"                      {  return SEMICOLON; }
-
-\"([^"\\]|\\.)*\"        {  yylval.str = strdup(yytext); return STRING_LITERAL; }
-
-[0-9]+                   {  yylval.num = atoi(yytext); return INTEGER; }
-
-[a-zA-Z_][a-zA-Z0-9_]*   {  
+\"([^"\\]|\\.)*\"  { 
     yylval.str = strdup(yytext); 
-    return IDENTIFIER; 
+    return STRING_LITERAL; 
 }
 
-.                        {  
-    fprintf(stderr, "LINE %d: Invalid character '%c'\n", line_no, yytext[0]);
-    return ERROR_CHAR;  /* Changed from ERROR to ERROR_CHAR */
+\'([^'\\]|\\.)\'   { 
+    yylval.str = strdup(yytext); 
+    return CHARACTER; 
+} 
+
+[0-9]+          { 
+    yylval.num = atoi(yytext); 
+    return INTEGER; 
+}      
+
+[0-9]*\.[0-9]+  { 
+    yylval.float_num = atof(yytext); 
+    return FLOAT; 
+} 
+
+[0-9]+\.[0-9]* { 
+    yylval.float_num = atof(yytext); 
+    return FLOAT; 
+} 
+
+[a-zA-Z_][a-zA-Z0-9_]* {  
+    yylval.str = strdup(yytext);
+    return IDENTIFIER;
+}
+
+.               {  
+    fprintf(stderr, "LEXER ERROR: Invalid character '%c' at line %d\n", *yytext, yylineno);
+    return ERROR_CHAR;
 }
 
 %%

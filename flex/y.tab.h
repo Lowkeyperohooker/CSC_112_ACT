@@ -50,28 +50,32 @@ extern int yydebug;
      ilimbag = 259,
      numero = 260,
      sulat = 261,
-     ASSIGN = 262,
-     COMMA = 263,
-     SEMICOLON = 264,
-     LPAREN = 265,
-     RPAREN = 266,
-     PLUS = 267,
-     MINUS = 268,
-     MULTIPLY = 269,
-     DIVIDE = 270,
-     MODULO = 271,
-     INCREMENT = 272,
-     DECREMENT = 273,
-     PLUS_ASSIGN = 274,
-     MINUS_ASSIGN = 275,
-     MULTIPLY_ASSIGN = 276,
-     DIVIDE_ASSIGN = 277,
-     MODULO_ASSIGN = 278,
-     STRING_LITERAL = 279,
-     INTEGER = 280,
-     IDENTIFIER = 281,
-     ERROR_CHAR = 282,
-     UMINUS = 283
+     letra = 262,
+     desimal = 263,
+     ASSIGN = 264,
+     COMMA = 265,
+     SEMICOLON = 266,
+     LPAREN = 267,
+     RPAREN = 268,
+     PLUS = 269,
+     MINUS = 270,
+     MULTIPLY = 271,
+     DIVIDE = 272,
+     MODULO = 273,
+     INCREMENT = 274,
+     DECREMENT = 275,
+     PLUS_ASSIGN = 276,
+     MINUS_ASSIGN = 277,
+     MULTIPLY_ASSIGN = 278,
+     DIVIDE_ASSIGN = 279,
+     MODULO_ASSIGN = 280,
+     STRING_LITERAL = 281,
+     INTEGER = 282,
+     FLOAT = 283,
+     CHARACTER = 284,
+     IDENTIFIER = 285,
+     ERROR_CHAR = 286,
+     UMINUS = 287
    };
 #endif
 
@@ -80,14 +84,17 @@ extern int yydebug;
 typedef union YYSTYPE
 {
 /* Line 2058 of yacc.c  */
-#line 34 "y.y"
+#line 50 "y.y"
 
     int num;
+    float float_num;
     char *str;
+    ExprVal val;
+    print_item *print_list;
 
 
 /* Line 2058 of yacc.c  */
-#line 91 "y.tab.h"
+#line 98 "y.tab.h"
 } YYSTYPE;
 # define YYSTYPE_IS_TRIVIAL 1
 # define yystype YYSTYPE /* obsolescent; will be withdrawn */
