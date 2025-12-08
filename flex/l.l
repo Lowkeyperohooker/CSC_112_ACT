@@ -2,8 +2,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include "types.h"  /* <--- Include types first */
-#include "y.tab.h"  /* <--- Include Yacc header second */
+#include "types.h"
+#include "y.tab.h"
 %}
 
 %option noyywrap
@@ -18,11 +18,7 @@
 ","             { return COMMA; }
 ";"             { return SEMICOLON; }
 "="             { return ASSIGN; }
-"+"             { return PLUS; }
-"-"             { return MINUS; }
-"*"             { return MULTIPLY; }
-"/"             { return DIVIDE; }
-"%"             { return MODULO; }
+
 "++"            { return INCREMENT; }
 "--"            { return DECREMENT; }
 
@@ -30,7 +26,11 @@
 "-="            { return MINUS_ASSIGN; }
 "*="            { return MULTIPLY_ASSIGN; }
 "/="            { return DIVIDE_ASSIGN; }
-"%="            { return MODULO_ASSIGN; }
+
+"+"             { return PLUS; }
+"-"             { return MINUS; }
+"*"             { return MULTIPLY; }
+"/"             { return DIVIDE; }
 
 "("             { return LPAREN; }
 ")"             { return RPAREN; }
@@ -54,7 +54,7 @@ desimal         { return desimal; }
 [0-9]+          { 
     yylval.num = atoi(yytext); 
     return INTEGER; 
-}      
+}       
 
 [0-9]*\.[0-9]+  { 
     yylval.float_num = atof(yytext); 
@@ -73,7 +73,7 @@ desimal         { return desimal; }
 
 .               {  
     fprintf(stderr, "LEXER ERROR: Invalid character '%c' at line %d\n", *yytext, yylineno);
-    return ERROR_CHAR;
+    exit(1);
 }
 
 %%

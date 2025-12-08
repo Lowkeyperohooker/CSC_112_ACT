@@ -3,13 +3,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
-#include "types.h" /* <--- Imports the structs. Do NOT define them again below. */
+#include "types.h" 
 
 extern int yylex();
 extern void yyerror(const char *s);
 extern int yylineno;
-
-int lineCount = 1;
 
 /* Symbol Table Definition */
 typedef struct {
@@ -33,15 +31,14 @@ symbol* getSymbol(const char *name);
 int varExists(const char *name);
 void declareVar(const char *name, const char *type);
 char* removeQuotes(const char *quoted_str);
-void printValue(symbol *var);
 ExprVal do_math(ExprVal v1, ExprVal v2, char op);
+void update_variable(char *name, ExprVal val, char op);
 
 /* Print list functions */
 print_item* create_print_item();
 void free_print_list(print_item *list);
 void execute_print(print_item *list);
 
-// Required for yylex and yyparse
 int yyparse(void);
 void check_unused_variables();
 
@@ -59,9 +56,9 @@ void check_unused_variables();
 %token NEWLINE
 %token ilimbag numero sulat letra desimal
 %token ASSIGN COMMA SEMICOLON LPAREN RPAREN
-%token PLUS MINUS MULTIPLY DIVIDE MODULO
+%token PLUS MINUS MULTIPLY DIVIDE 
 %token INCREMENT DECREMENT
-%token PLUS_ASSIGN MINUS_ASSIGN MULTIPLY_ASSIGN DIVIDE_ASSIGN MODULO_ASSIGN
+%token PLUS_ASSIGN MINUS_ASSIGN MULTIPLY_ASSIGN DIVIDE_ASSIGN 
 %token <str> STRING_LITERAL
 %token <num> INTEGER
 %token <float_num> FLOAT
@@ -71,8 +68,8 @@ void check_unused_variables();
 
 // Operator precedence
 %left PLUS MINUS
-%left MULTIPLY DIVIDE MODULO
-%right UMINUS
+%left MULTIPLY DIVIDE 
+%right UMINUS UPLUS 
 
 // Types
 %type <val> expr term factor
@@ -85,20 +82,14 @@ program: /* empty */
     | program line
     ;
 
-line: statement NEWLINE { lineCount++; }
-    | NEWLINE { lineCount++; }
-    | error NEWLINE { yyerrok; lineCount++; }
+line: statement NEWLINE 
+    | NEWLINE 
     ;
 
-statement: declaration      /* Removed SEMICOLON */
-    | assignment            /* Removed SEMICOLON */
+statement: declaration      
+    | assignment            
     | print_stmt
-    | expr                  /* Removed SEMICOLON */
-    { 
-        if($1.type == 0) printf("Result: %d\n", $1.i_val);
-        else if($1.type == 1) printf("Result: %.2f\n", $1.f_val);
-        else if($1.type == 2) printf("Result: %s\n", $1.s_val);
-    }
+    | expr { /* Silent execution */ }
     ;
 
 declaration: numero IDENTIFIER {
@@ -153,83 +144,68 @@ declaration: numero IDENTIFIER {
     ;
 
 assignment: IDENTIFIER ASSIGN expr {
-        if (!varExists($1)) yyerror("Undeclared variable");
-        else {
-            symbol *var = getSymbol($1);
-            if (strcmp(var->type, "int") == 0) {
-                if ($3.type == 0) var->value.int_val = $3.i_val;
-                else if ($3.type == 1) var->value.int_val = (int)$3.f_val;
-                else yyerror("Cannot assign string to int");
-                var->is_initialized = 1;
-            } else if (strcmp(var->type, "float") == 0) {
-                if ($3.type == 1) var->value.float_val = $3.f_val;
-                else if ($3.type == 0) var->value.float_val = (float)$3.i_val;
-                else yyerror("Cannot assign string to float");
-                var->is_initialized = 1;
-            } else {
-                yyerror("Type mismatch or invalid assignment");
-            }
-        }
+        update_variable($1, $3, '=');
+        free($1);
+    }
+    | IDENTIFIER PLUS_ASSIGN expr {
+        update_variable($1, $3, '+');
+        free($1);
+    }
+    | IDENTIFIER MINUS_ASSIGN expr {
+        update_variable($1, $3, '-');
+        free($1);
+    }
+    | IDENTIFIER MULTIPLY_ASSIGN expr {
+        update_variable($1, $3, '*');
+        free($1);
+    }
+    | IDENTIFIER DIVIDE_ASSIGN expr {
+        update_variable($1, $3, '/');
         free($1);
     }
     | IDENTIFIER ASSIGN char_val {
         if (!varExists($1)) yyerror("Undeclared variable");
-        else {
-            symbol *var = getSymbol($1);
-            if (strcmp(var->type, "char") == 0) {
-                var->value.char_val = $3[0];
-                var->is_initialized = 1;
-            } else if (strcmp(var->type, "string") == 0) {
-                char *str = malloc(2);
-                str[0] = $3[0]; str[1] = '\0';
-                if (var->value.str_val) free(var->value.str_val);
-                var->value.str_val = str;
-                var->is_initialized = 1;
-            } else {
-                yyerror("Cannot assign char to numeric type");
-            }
+        symbol *var = getSymbol($1);
+        if (strcmp(var->type, "char") == 0) {
+            var->value.char_val = $3[0];
+            var->is_initialized = 1;
+        } else if (strcmp(var->type, "string") == 0) {
+             if (var->value.str_val) free(var->value.str_val);
+             char *s = malloc(2); s[0]=$3[0]; s[1]='\0';
+             var->value.str_val = s;
+             var->is_initialized = 1;
+        } else {
+             yyerror("Type mismatch in assignment");
         }
-        free($1);
-        free($3);
+        free($1); free($3);
     }
     | IDENTIFIER ASSIGN string_val {
         if (!varExists($1)) yyerror("Undeclared variable");
-        else {
-            symbol *var = getSymbol($1);
-            if (strcmp(var->type, "string") == 0) {
-                if (var->value.str_val) free(var->value.str_val);
-                var->value.str_val = $3;
-                var->is_initialized = 1;
-            } else {
-                yyerror("Cannot assign string to non-string type");
-                free($3);
-            }
-        }
+        symbol *var = getSymbol($1);
+        if (strcmp(var->type, "string") != 0) yyerror("Cannot assign string to non-string variable");
+        if (var->value.str_val) free(var->value.str_val);
+        var->value.str_val = $3;
+        var->is_initialized = 1;
         free($1);
     }
     | IDENTIFIER INCREMENT {
         if (!varExists($1)) yyerror("Undeclared variable");
-        else {
-            symbol *var = getSymbol($1);
-            if (strcmp(var->type, "int") == 0) var->value.int_val++;
-            else if (strcmp(var->type, "float") == 0) var->value.float_val += 1.0;
-            else yyerror("++ only for numeric types");
-        }
+        symbol *var = getSymbol($1);
+        if (strcmp(var->type, "int") == 0) var->value.int_val++;
+        else if (strcmp(var->type, "float") == 0) var->value.float_val += 1.0;
+        else yyerror("++ only for numeric types");
         free($1);
     }
     | IDENTIFIER DECREMENT {
         if (!varExists($1)) yyerror("Undeclared variable");
-        else {
-            symbol *var = getSymbol($1);
-            if (strcmp(var->type, "int") == 0) var->value.int_val--;
-            else if (strcmp(var->type, "float") == 0) var->value.float_val -= 1.0;
-            else yyerror("-- only for numeric types");
-        }
+        symbol *var = getSymbol($1);
+        if (strcmp(var->type, "int") == 0) var->value.int_val--;
+        else if (strcmp(var->type, "float") == 0) var->value.float_val -= 1.0;
+        else yyerror("-- only for numeric types");
         free($1);
     }
     ;
 
-/* Python-style print statements */
 print_stmt: ilimbag print_items {
         execute_print($2);
         free_print_list($2);
@@ -260,22 +236,22 @@ print_item: STRING_LITERAL {
         $$->value.char_val = removeQuotes($1)[0];
         free($1);
     }
-    /* IDENTIFIER removed here. Variables now handled via 'expr' */
     | expr {
         $$ = create_print_item();
         $$->type = PRINT_EXPR;
+        
         $$->value.expr_val.type = $1.type;
-        if ($1.type == 0) {
+        
+        if ($1.type == 0) { // int
             $$->value.expr_val.value.i_val = $1.i_val;
-        } else if ($1.type == 1) {
+        } else if ($1.type == 1) { // float
             $$->value.expr_val.value.f_val = $1.f_val;
-        } else if ($1.type == 2) {
+        } else if ($1.type == 2) { // string
             $$->value.expr_val.value.s_val = $1.s_val ? strdup($1.s_val) : NULL;
         }
     }
     ;
 
-/* Expression grammar */
 expr: term { $$ = $1; }
     | expr PLUS term { $$ = do_math($1, $3, '+'); }
     | expr MINUS term { $$ = do_math($1, $3, '-'); }
@@ -284,7 +260,6 @@ expr: term { $$ = $1; }
 term: factor { $$ = $1; }
     | term MULTIPLY factor { $$ = do_math($1, $3, '*'); }
     | term DIVIDE factor { $$ = do_math($1, $3, '/'); }
-    | term MODULO factor { $$ = do_math($1, $3, '%'); }
     ;
 
 factor: INTEGER { 
@@ -298,33 +273,20 @@ factor: INTEGER {
         $$.f_val = $1; 
     }
     | IDENTIFIER {
-        if (!varExists($1)) {
-            yyerror("Undeclared variable");
-            $$.type = 0; $$.i_val = 0;
+        if (!varExists($1)) yyerror("Undeclared variable");
+        symbol *var = getSymbol($1);
+        if (strcmp(var->type, "int") == 0) {
+            $$.type = 0; $$.i_val = var->value.int_val;
+        } else if (strcmp(var->type, "float") == 0) {
+            $$.type = 1; $$.f_val = var->value.float_val;
+        } else if (strcmp(var->type, "char") == 0) {
+            $$.type = 0; $$.i_val = (int)var->value.char_val; 
+        } else if (strcmp(var->type, "string") == 0) {
+            $$.type = 2; $$.s_val = var->value.str_val;
         } else {
-            symbol *var = getSymbol($1);
-            if (strcmp(var->type, "int") == 0) {
-                $$.type = 0;
-                $$.i_val = var->value.int_val;
-            } else if (strcmp(var->type, "float") == 0) {
-                $$.type = 1;
-                $$.f_val = var->value.float_val;
-            
-            /* --- ADD THIS BLOCK --- */
-            } else if (strcmp(var->type, "char") == 0) {
-                $$.type = 0; // Treat char as int (ASCII value) for printing/math
-                $$.i_val = (int)var->value.char_val; 
-            /* ---------------------- */
-
-            } else if (strcmp(var->type, "string") == 0) {
-                $$.type = 2;
-                $$.s_val = var->value.str_val;
-            } else {
-                yyerror("Unsupported variable type in expression");
-                $$.type = 0; $$.i_val = 0;
-            }
-            var->is_used = 1;
+             $$.type=0; 
         }
+        var->is_used = 1;
         free($1);
     }
     | MINUS factor %prec UMINUS { 
@@ -332,6 +294,10 @@ factor: INTEGER {
         if($$.type == 0) $$.i_val = -$$.i_val;
         else if($$.type == 1) $$.f_val = -$$.f_val;
         else yyerror("Cannot negate a string");
+    }
+    | PLUS factor %prec UPLUS { 
+        $$ = $2; 
+        if($$.type == 2) yyerror("Cannot use + on string");
     }
     | LPAREN expr RPAREN { $$ = $2; }
     ;
@@ -350,7 +316,48 @@ char_val: CHARACTER {
 
 %%
 
-/* C Helper Functions */
+/* --- Helper Functions --- */
+
+void update_variable(char *name, ExprVal val, char op) {
+    if (!varExists(name)) yyerror("Undeclared variable");
+    
+    symbol *var = getSymbol(name);
+    
+    float val_f = (val.type == 1) ? val.f_val : (float)val.i_val;
+    int val_i   = (val.type == 0) ? val.i_val : (int)val.f_val;
+    
+    if (strcmp(var->type, "int") == 0) {
+        if (val.type == 2) yyerror("Cannot assign string to int");
+        switch(op) {
+            case '=': var->value.int_val = val_i; break;
+            case '+': var->value.int_val += val_i; break;
+            case '-': var->value.int_val -= val_i; break;
+            case '*': var->value.int_val *= val_i; break;
+            case '/': 
+                if (val_i == 0) yyerror("Division by zero");
+                var->value.int_val /= val_i; 
+                break;
+        }
+        var->is_initialized = 1;
+    } 
+    else if (strcmp(var->type, "float") == 0) {
+        if (val.type == 2) yyerror("Cannot assign string to float");
+        switch(op) {
+            case '=': var->value.float_val = val_f; break;
+            case '+': var->value.float_val += val_f; break;
+            case '-': var->value.float_val -= val_f; break;
+            case '*': var->value.float_val *= val_f; break;
+            case '/': 
+                if (val_f == 0.0) yyerror("Division by zero");
+                var->value.float_val /= val_f; 
+                break;
+        }
+        var->is_initialized = 1;
+    }
+    else {
+        yyerror("Invalid operation on non-numeric variable");
+    }
+}
 
 ExprVal do_math(ExprVal v1, ExprVal v2, char op) {
     ExprVal res;
@@ -358,25 +365,13 @@ ExprVal do_math(ExprVal v1, ExprVal v2, char op) {
 
     if (v1.type == 2 || v2.type == 2) {
         yyerror("Cannot perform arithmetic on strings");
-        res.type = 0; 
-        return res;
     }
 
     int is_float = (v1.type == 1 || v2.type == 1);
-    
     float f1 = (v1.type == 0) ? (float)v1.i_val : v1.f_val;
     float f2 = (v2.type == 0) ? (float)v2.i_val : v2.f_val;
-    
-    if (op == '%') {
-        res.type = 0;
-        if (is_float) {
-            yyerror("Modulo operator requires integers");
-        } else {
-            if (v2.i_val == 0) yyerror("Modulo by zero");
-            else res.i_val = v1.i_val % v2.i_val;
-        }
-        return res;
-    }
+
+    /* Removed Modulo Case */
 
     res.type = is_float ? 1 : 0;
 
@@ -394,12 +389,9 @@ ExprVal do_math(ExprVal v1, ExprVal v2, char op) {
             else res.i_val = v1.i_val * v2.i_val; 
             break;
         case '/': 
-            if (f2 == 0) { 
-                yyerror("Division by zero"); 
-            } else {
-                if(is_float) res.f_val = f1 / f2; 
-                else res.i_val = v1.i_val / v2.i_val; 
-            }
+            if (f2 == 0) yyerror("Division by zero");
+            if(is_float) res.f_val = f1 / f2; 
+            else res.i_val = v1.i_val / v2.i_val; 
             break;
     }
     return res;
@@ -431,14 +423,9 @@ int varExists(const char *name) {
 }
 
 void declareVar(const char *name, const char *type) {
-    if (varExists(name)) {
-        yyerror("Redeclaration of variable");
-        return;
-    }
-    if (symCount >= 100) {
-        yyerror("Symbol table overflow");
-        return;
-    }
+    if (varExists(name)) yyerror("Redeclaration of variable");
+    if (symCount >= 100) yyerror("Symbol table overflow");
+    
     strcpy(table[symCount].name, name);
     strcpy(table[symCount].type, type);
     table[symCount].value.int_val = 0; 
@@ -450,10 +437,6 @@ void declareVar(const char *name, const char *type) {
 
 print_item* create_print_item() {
     print_item *item = (print_item*)malloc(sizeof(print_item));
-    if (!item) {
-        perror("Failed to allocate print_item");
-        exit(EXIT_FAILURE);
-    }
     item->next = NULL;
     item->value.str = NULL; 
     return item;
@@ -464,7 +447,8 @@ void free_print_list(print_item *list) {
         print_item *next = list->next;
         if (list->type == PRINT_STRING && list->value.str) {
             free(list->value.str);
-        } else if (list->type == PRINT_EXPR && list->value.expr_val.type == 2 && list->value.expr_val.value.s_val) {
+        } 
+        else if (list->type == PRINT_EXPR && list->value.expr_val.type == 2 && list->value.expr_val.value.s_val) {
             free(list->value.expr_val.value.s_val);
         }
         free(list);
@@ -521,10 +505,8 @@ void check_unused_variables() {
 }
 
 int main(void) {
-    lineCount = 1;
-    
+    yylineno = 1;
     int result = yyparse();
-    
     check_unused_variables();
     
     for (int i = 0; i < symCount; i++) {
@@ -536,5 +518,6 @@ int main(void) {
 }
 
 void yyerror(const char *s) {
-    fprintf(stderr, "LINE %d ERROR: %s\n", lineCount, s);
+    fprintf(stderr, "LINE %d ERROR: %s\n", yylineno, s);
+    exit(1); 
 }

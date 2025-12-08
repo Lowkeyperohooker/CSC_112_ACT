@@ -1,56 +1,44 @@
-PROGRAM → STATEMENT_LIST
+LANGUAGE SPECIFICATION
+TOKENS (LEXICAL UNITS)
 
-STATEMENT_LIST → STATEMENT
-               | STATEMENT_LIST STATEMENT
+KEYWORDS: ilimbag : Print command numero : Integer type declaration desimal : Float type declaration letra : Character type declaration sulat : String type declaration
 
-STATEMENT → DECLARATION NEWLINE
-          | ASSIGNMENT NEWLINE
-          | PRINT_STMT NEWLINE
-          | UNARY_STMT NEWLINE
-          | COMPOUND_ASSIGN_STMT NEWLINE
-          | NEWLINE  (empty statement)
+OPERATORS & ASSIGNMENT: = : ASSIGN
 
-DECLARATION → NUMERO IDENTIFIER_LIST
-            | SULAT IDENTIFIER_LIST
+       : PLUS
+       : MINUS
+: MULTIPLY / : DIVIDE ++ : INCREMENT -- : DECREMENT += : PLUS_ASSIGN -= : MINUS_ASSIGN *= : MULTIPLY_ASSIGN /= : DIVIDE_ASSIGN
 
-IDENTIFIER_LIST → IDENTIFIER
-                | IDENTIFIER = EXPRESSION
-                | IDENTIFIER_LIST , IDENTIFIER
-                | IDENTIFIER_LIST , IDENTIFIER = EXPRESSION
+SEPARATORS & GROUPING: , : COMMA ( : LPAREN ) : RPAREN \n : NEWLINE
 
-ASSIGNMENT → IDENTIFIER = EXPRESSION
+LITERALS & IDENTIFIERS: INTEGER : Sequence of digits (e.g., 10, 42) FLOAT : Decimal numbers (e.g., 3.14, 0.5) STRING_LITERAL: Double-quoted text (e.g., "Hello World") CHARACTER : Single-quoted character (e.g., 'A') IDENTIFIER : Variable names (starts with letter/underscore)
 
-COMPOUND_ASSIGN_STMT → IDENTIFIER COMPOUND_OP EXPRESSION
+CONTEXT-FREE GRAMMAR (BNF NOTATION)
 
-COMPOUND_OP → += | -= | *= | /=
+<non-terminal> ::= definition
 
-UNARY_STMT → INCREMENT IDENTIFIER
-           | DECREMENT IDENTIFIER
-           | IDENTIFIER INCREMENT
-           | IDENTIFIER DECREMENT
+<program> ::= <program> <line> | ε
 
-PRINT_STMT → ILIMBAG PRINT_ARGS
+<line> ::= <statement> NEWLINE | NEWLINE
 
-PRINT_ARGS → EXPRESSION
-           | STRING_LITERAL
-           | STRING_LITERAL , EXPRESSION
-           | PRINT_ARGS , EXPRESSION
+<statement> ::= <declaration> | <assignment> | <print_stmt> | <expr>
 
-EXPRESSION → TERM
-           | EXPRESSION + TERM
-           | EXPRESSION - TERM
+<declaration> ::= numero IDENTIFIER | numero IDENTIFIER = <expr> | desimal IDENTIFIER | desimal IDENTIFIER = <expr> | letra IDENTIFIER | letra IDENTIFIER = <char_val> | sulat IDENTIFIER | sulat IDENTIFIER = <string_val>
 
-TERM → FACTOR
-      | TERM * FACTOR
-      | TERM / FACTOR
+<assignment> ::= IDENTIFIER = <expr> | IDENTIFIER += <expr> | IDENTIFIER -= <expr> | IDENTIFIER *= <expr> | IDENTIFIER /= <expr> | IDENTIFIER = <char_val> | IDENTIFIER = <string_val> | IDENTIFIER ++ | IDENTIFIER --
 
-FACTOR → NUMBER
-       | CHAR_LITERAL
-       | IDENTIFIER
-       | ( EXPRESSION )
-       | - FACTOR
-       | + FACTOR
-       | INCREMENT IDENTIFIER
-       | DECREMENT IDENTIFIER
-       | IDENTIFIER INCREMENT
-       | IDENTIFIER DECREMENT
+<print_stmt> ::= ilimbag <print_items> | ilimbag
+
+<print_items> ::= <print_item> | <print_items> , <print_item>
+
+<print_item> ::= STRING_LITERAL | CHARACTER | <expr>
+
+<expr> ::= <term> | <expr> + <term> | <expr> - <term>
+
+<term> ::= <factor> | <term> * <factor> | <term> / <factor>
+
+<factor> ::= INTEGER | FLOAT | IDENTIFIER | - <factor> (Unary Minus) | + <factor> (Unary Plus) | ( <expr> )
+
+<string_val> ::= STRING_LITERAL
+
+<char_val> ::= CHARACTER

@@ -9,6 +9,13 @@ x = x + 5
 y = y * 2.0
 c = 'B'
 
+x += 10
+x -= 4
+x *= 5
+x /= 5
+desimal t = 5 + -3
+t += + - + - + 1
+
 // Python-style print statements
 ilimbag x
 ilimbag y

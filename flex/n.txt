@@ -3,4 +3,6 @@ del lex.yy.c y.tab.c y.tab.h cs.exe 2>nul
 lex l.l
 yacc -d y.y
 
-gcc lex.yy.c y.tab.c -o cs.exe -lm
+gcc lex.yy.c y.tab.c -o com.exe -lm
+
+com.exe < test.txt

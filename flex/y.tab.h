@@ -61,21 +61,20 @@ extern int yydebug;
      MINUS = 270,
      MULTIPLY = 271,
      DIVIDE = 272,
-     MODULO = 273,
-     INCREMENT = 274,
-     DECREMENT = 275,
-     PLUS_ASSIGN = 276,
-     MINUS_ASSIGN = 277,
-     MULTIPLY_ASSIGN = 278,
-     DIVIDE_ASSIGN = 279,
-     MODULO_ASSIGN = 280,
-     STRING_LITERAL = 281,
-     INTEGER = 282,
-     FLOAT = 283,
-     CHARACTER = 284,
-     IDENTIFIER = 285,
-     ERROR_CHAR = 286,
-     UMINUS = 287
+     INCREMENT = 273,
+     DECREMENT = 274,
+     PLUS_ASSIGN = 275,
+     MINUS_ASSIGN = 276,
+     MULTIPLY_ASSIGN = 277,
+     DIVIDE_ASSIGN = 278,
+     STRING_LITERAL = 279,
+     INTEGER = 280,
+     FLOAT = 281,
+     CHARACTER = 282,
+     IDENTIFIER = 283,
+     ERROR_CHAR = 284,
+     UPLUS = 285,
+     UMINUS = 286
    };
 #endif
 
@@ -84,7 +83,7 @@ extern int yydebug;
 typedef union YYSTYPE
 {
 /* Line 2058 of yacc.c  */
-#line 50 "y.y"
+#line 47 "y.y"
 
     int num;
     float float_num;
@@ -94,7 +93,7 @@ typedef union YYSTYPE
 
 
 /* Line 2058 of yacc.c  */
-#line 98 "y.tab.h"
+#line 97 "y.tab.h"
 } YYSTYPE;
 # define YYSTYPE_IS_TRIVIAL 1
 # define yystype YYSTYPE /* obsolescent; will be withdrawn */

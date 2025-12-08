@@ -69,13 +69,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
-#include "types.h" /* <--- Imports the structs. Do NOT define them again below. */
+#include "types.h" 
 
 extern int yylex();
 extern void yyerror(const char *s);
 extern int yylineno;
-
-int lineCount = 1;
 
 /* Symbol Table Definition */
 typedef struct {
@@ -99,21 +97,20 @@ symbol* getSymbol(const char *name);
 int varExists(const char *name);
 void declareVar(const char *name, const char *type);
 char* removeQuotes(const char *quoted_str);
-void printValue(symbol *var);
 ExprVal do_math(ExprVal v1, ExprVal v2, char op);
+void update_variable(char *name, ExprVal val, char op);
 
 /* Print list functions */
 print_item* create_print_item();
 void free_print_list(print_item *list);
 void execute_print(print_item *list);
 
-// Required for yylex and yyparse
 int yyparse(void);
 void check_unused_variables();
 
 
 /* Line 371 of yacc.c  */
-#line 117 "y.tab.c"
+#line 114 "y.tab.c"
 
 # ifndef YY_NULL
 #  if defined __cplusplus && 201103L <= __cplusplus
@@ -164,21 +161,20 @@ extern int yydebug;
      MINUS = 270,
      MULTIPLY = 271,
      DIVIDE = 272,
-     MODULO = 273,
-     INCREMENT = 274,
-     DECREMENT = 275,
-     PLUS_ASSIGN = 276,
-     MINUS_ASSIGN = 277,
-     MULTIPLY_ASSIGN = 278,
-     DIVIDE_ASSIGN = 279,
-     MODULO_ASSIGN = 280,
-     STRING_LITERAL = 281,
-     INTEGER = 282,
-     FLOAT = 283,
-     CHARACTER = 284,
-     IDENTIFIER = 285,
-     ERROR_CHAR = 286,
-     UMINUS = 287
+     INCREMENT = 273,
+     DECREMENT = 274,
+     PLUS_ASSIGN = 275,
+     MINUS_ASSIGN = 276,
+     MULTIPLY_ASSIGN = 277,
+     DIVIDE_ASSIGN = 278,
+     STRING_LITERAL = 279,
+     INTEGER = 280,
+     FLOAT = 281,
+     CHARACTER = 282,
+     IDENTIFIER = 283,
+     ERROR_CHAR = 284,
+     UPLUS = 285,
+     UMINUS = 286
    };
 #endif
 
@@ -187,7 +183,7 @@ extern int yydebug;
 typedef union YYSTYPE
 {
 /* Line 387 of yacc.c  */
-#line 50 "y.y"
+#line 47 "y.y"
 
     int num;
     float float_num;
@@ -197,7 +193,7 @@ typedef union YYSTYPE
 
 
 /* Line 387 of yacc.c  */
-#line 201 "y.tab.c"
+#line 197 "y.tab.c"
 } YYSTYPE;
 # define YYSTYPE_IS_TRIVIAL 1
 # define yystype YYSTYPE /* obsolescent; will be withdrawn */
@@ -225,7 +221,7 @@ int yyparse ();
 /* Copy the second part of user declarations.  */
 
 /* Line 390 of yacc.c  */
-#line 229 "y.tab.c"
+#line 225 "y.tab.c"
 
 #ifdef short
 # undef short
@@ -445,20 +441,20 @@ union yyalloc
 /* YYFINAL -- State number of the termination state.  */
 #define YYFINAL  2
 /* YYLAST -- Last index in YYTABLE.  */
-#define YYLAST   71
+#define YYLAST   83
 
 /* YYNTOKENS -- Number of terminals.  */
-#define YYNTOKENS  33
+#define YYNTOKENS  32
 /* YYNNTS -- Number of nonterminals.  */
 #define YYNNTS  14
 /* YYNRULES -- Number of rules.  */
-#define YYNRULES  44
+#define YYNRULES  47
 /* YYNRULES -- Number of states.  */
-#define YYNSTATES  66
+#define YYNSTATES  72
 
 /* YYTRANSLATE(YYLEX) -- Bison symbol number corresponding to YYLEX.  */
 #define YYUNDEFTOK  2
-#define YYMAXUTOK   287
+#define YYMAXUTOK   286
 
 #define YYTRANSLATE(YYX)						\
   ((unsigned int) (YYX) <= YYMAXUTOK ? yytranslate[YYX] : YYUNDEFTOK)
@@ -494,7 +490,7 @@ static const yytype_uint8 yytranslate[] =
        2,     2,     2,     2,     2,     2,     1,     2,     3,     4,
        5,     6,     7,     8,     9,    10,    11,    12,    13,    14,
       15,    16,    17,    18,    19,    20,    21,    22,    23,    24,
-      25,    26,    27,    28,    29,    30,    31,    32
+      25,    26,    27,    28,    29,    30,    31
 };
 
 #if YYDEBUG
@@ -502,40 +498,41 @@ static const yytype_uint8 yytranslate[] =
    YYRHS.  */
 static const yytype_uint8 yyprhs[] =
 {
-       0,     0,     3,     4,     7,    10,    12,    15,    17,    19,
-      21,    23,    26,    31,    34,    39,    42,    47,    50,    55,
-      59,    63,    67,    70,    73,    76,    78,    80,    84,    86,
-      88,    90,    92,    96,   100,   102,   106,   110,   114,   116,
-     118,   120,   123,   127,   129
+       0,     0,     3,     4,     7,    10,    12,    14,    16,    18,
+      20,    23,    28,    31,    36,    39,    44,    47,    52,    56,
+      60,    64,    68,    72,    76,    80,    83,    86,    89,    91,
+      93,    97,    99,   101,   103,   105,   109,   113,   115,   119,
+     123,   125,   127,   129,   132,   135,   139,   141
 };
 
 /* YYRHS -- A `-1'-separated list of the rules' RHS.  */
 static const yytype_int8 yyrhs[] =
 {
-      34,     0,    -1,    -1,    34,    35,    -1,    36,     3,    -1,
-       3,    -1,     1,     3,    -1,    37,    -1,    38,    -1,    39,
-      -1,    42,    -1,     5,    30,    -1,     5,    30,     9,    42,
-      -1,     8,    30,    -1,     8,    30,     9,    42,    -1,     7,
-      30,    -1,     7,    30,     9,    46,    -1,     6,    30,    -1,
-       6,    30,     9,    45,    -1,    30,     9,    42,    -1,    30,
-       9,    46,    -1,    30,     9,    45,    -1,    30,    19,    -1,
-      30,    20,    -1,     4,    40,    -1,     4,    -1,    41,    -1,
-      40,    10,    41,    -1,    26,    -1,    29,    -1,    42,    -1,
-      43,    -1,    42,    14,    43,    -1,    42,    15,    43,    -1,
-      44,    -1,    43,    16,    44,    -1,    43,    17,    44,    -1,
-      43,    18,    44,    -1,    27,    -1,    28,    -1,    30,    -1,
-      15,    44,    -1,    12,    42,    13,    -1,    26,    -1,    29,
-      -1
+      33,     0,    -1,    -1,    33,    34,    -1,    35,     3,    -1,
+       3,    -1,    36,    -1,    37,    -1,    38,    -1,    41,    -1,
+       5,    28,    -1,     5,    28,     9,    41,    -1,     8,    28,
+      -1,     8,    28,     9,    41,    -1,     7,    28,    -1,     7,
+      28,     9,    45,    -1,     6,    28,    -1,     6,    28,     9,
+      44,    -1,    28,     9,    41,    -1,    28,    20,    41,    -1,
+      28,    21,    41,    -1,    28,    22,    41,    -1,    28,    23,
+      41,    -1,    28,     9,    45,    -1,    28,     9,    44,    -1,
+      28,    18,    -1,    28,    19,    -1,     4,    39,    -1,     4,
+      -1,    40,    -1,    39,    10,    40,    -1,    24,    -1,    27,
+      -1,    41,    -1,    42,    -1,    41,    14,    42,    -1,    41,
+      15,    42,    -1,    43,    -1,    42,    16,    43,    -1,    42,
+      17,    43,    -1,    25,    -1,    26,    -1,    28,    -1,    15,
+      43,    -1,    14,    43,    -1,    12,    41,    13,    -1,    24,
+      -1,    27,    -1
 };
 
 /* YYRLINE[YYN] -- source line where rule number YYN was defined.  */
 static const yytype_uint16 yyrline[] =
 {
-       0,    84,    84,    85,    88,    89,    90,    93,    94,    95,
-      96,   104,   108,   117,   121,   130,   134,   142,   146,   155,
-     175,   195,   210,   220,   233,   237,   242,   243,   251,   257,
-     264,   279,   280,   281,   284,   285,   286,   287,   290,   295,
-     300,   330,   336,   339,   345
+       0,    81,    81,    82,    85,    86,    89,    90,    91,    92,
+      95,    99,   108,   112,   121,   125,   133,   137,   146,   150,
+     154,   158,   162,   166,   182,   191,   199,   209,   213,   218,
+     219,   227,   233,   239,   255,   256,   257,   260,   261,   262,
+     265,   270,   275,   292,   298,   302,   305,   311
 };
 #endif
 
@@ -546,13 +543,12 @@ static const char *const yytname[] =
 {
   "$end", "error", "$undefined", "NEWLINE", "ilimbag", "numero", "sulat",
   "letra", "desimal", "ASSIGN", "COMMA", "SEMICOLON", "LPAREN", "RPAREN",
-  "PLUS", "MINUS", "MULTIPLY", "DIVIDE", "MODULO", "INCREMENT",
-  "DECREMENT", "PLUS_ASSIGN", "MINUS_ASSIGN", "MULTIPLY_ASSIGN",
-  "DIVIDE_ASSIGN", "MODULO_ASSIGN", "STRING_LITERAL", "INTEGER", "FLOAT",
-  "CHARACTER", "IDENTIFIER", "ERROR_CHAR", "UMINUS", "$accept", "program",
-  "line", "statement", "declaration", "assignment", "print_stmt",
-  "print_items", "print_item", "expr", "term", "factor", "string_val",
-  "char_val", YY_NULL
+  "PLUS", "MINUS", "MULTIPLY", "DIVIDE", "INCREMENT", "DECREMENT",
+  "PLUS_ASSIGN", "MINUS_ASSIGN", "MULTIPLY_ASSIGN", "DIVIDE_ASSIGN",
+  "STRING_LITERAL", "INTEGER", "FLOAT", "CHARACTER", "IDENTIFIER",
+  "ERROR_CHAR", "UPLUS", "UMINUS", "$accept", "program", "line",
+  "statement", "declaration", "assignment", "print_stmt", "print_items",
+  "print_item", "expr", "term", "factor", "string_val", "char_val", YY_NULL
 };
 #endif
 
@@ -564,28 +560,28 @@ static const yytype_uint16 yytoknum[] =
        0,   256,   257,   258,   259,   260,   261,   262,   263,   264,
      265,   266,   267,   268,   269,   270,   271,   272,   273,   274,
      275,   276,   277,   278,   279,   280,   281,   282,   283,   284,
-     285,   286,   287
+     285,   286
 };
 # endif
 
 /* YYR1[YYN] -- Symbol number of symbol that rule YYN derives.  */
 static const yytype_uint8 yyr1[] =
 {
-       0,    33,    34,    34,    35,    35,    35,    36,    36,    36,
-      36,    37,    37,    37,    37,    37,    37,    37,    37,    38,
-      38,    38,    38,    38,    39,    39,    40,    40,    41,    41,
-      41,    42,    42,    42,    43,    43,    43,    43,    44,    44,
-      44,    44,    44,    45,    46
+       0,    32,    33,    33,    34,    34,    35,    35,    35,    35,
+      36,    36,    36,    36,    36,    36,    36,    36,    37,    37,
+      37,    37,    37,    37,    37,    37,    37,    38,    38,    39,
+      39,    40,    40,    40,    41,    41,    41,    42,    42,    42,
+      43,    43,    43,    43,    43,    43,    44,    45
 };
 
 /* YYR2[YYN] -- Number of symbols composing right hand side of rule YYN.  */
 static const yytype_uint8 yyr2[] =
 {
-       0,     2,     0,     2,     2,     1,     2,     1,     1,     1,
-       1,     2,     4,     2,     4,     2,     4,     2,     4,     3,
-       3,     3,     2,     2,     2,     1,     1,     3,     1,     1,
-       1,     1,     3,     3,     1,     3,     3,     3,     1,     1,
-       1,     2,     3,     1,     1
+       0,     2,     0,     2,     2,     1,     1,     1,     1,     1,
+       2,     4,     2,     4,     2,     4,     2,     4,     3,     3,
+       3,     3,     3,     3,     3,     2,     2,     2,     1,     1,
+       3,     1,     1,     1,     1,     3,     3,     1,     3,     3,
+       1,     1,     1,     2,     2,     3,     1,     1
 };
 
 /* YYDEFACT[STATE-NAME] -- Default reduction number in state STATE-NUM.
@@ -593,20 +589,21 @@ static const yytype_uint8 yyr2[] =
    means the default is an error.  */
 static const yytype_uint8 yydefact[] =
 {
-       2,     0,     1,     0,     5,    25,     0,     0,     0,     0,
-       0,     0,    38,    39,    40,     3,     0,     7,     8,     9,
-      10,    31,    34,     6,    28,    29,    40,    24,    26,    30,
-      11,    17,    15,    13,     0,    41,     0,    22,    23,     4,
-       0,     0,     0,     0,     0,     0,     0,     0,     0,     0,
-      42,    43,    44,    19,    21,    20,    32,    33,    35,    36,
-      37,    27,    12,    18,    16,    14
+       2,     0,     1,     5,    28,     0,     0,     0,     0,     0,
+       0,     0,    40,    41,    42,     3,     0,     6,     7,     8,
+       9,    34,    37,    31,    32,    42,    27,    29,    33,    10,
+      16,    14,    12,     0,    44,    43,     0,    25,    26,     0,
+       0,     0,     0,     4,     0,     0,     0,     0,     0,     0,
+       0,     0,     0,    45,    46,    47,    18,    24,    23,    19,
+      20,    21,    22,    35,    36,    38,    39,    30,    11,    17,
+      15,    13
 };
 
 /* YYDEFGOTO[NTERM-NUM].  */
 static const yytype_int8 yydefgoto[] =
 {
-      -1,     1,    15,    16,    17,    18,    19,    27,    28,    29,
-      21,    22,    54,    55
+      -1,     1,    15,    16,    17,    18,    19,    26,    27,    28,
+      21,    22,    57,    58
 };
 
 /* YYPACT[STATE-NUM] -- Index in YYTABLE of the portion describing
@@ -614,20 +611,21 @@ static const yytype_int8 yydefgoto[] =
 #define YYPACT_NINF -27
 static const yytype_int8 yypact[] =
 {
-     -27,    10,   -27,     9,   -27,    24,    -6,     1,    12,    16,
-      -7,    -7,   -27,   -27,    51,   -27,    40,   -27,   -27,   -27,
-      -8,   -14,   -27,   -27,   -27,   -27,   -27,    37,   -27,    -8,
-      52,    53,    54,    55,    13,   -27,    29,   -27,   -27,   -27,
-      -7,    -7,    -7,    -7,    -7,    24,    -7,    23,    36,    -7,
-     -27,   -27,   -27,    -8,   -27,   -27,   -14,   -14,   -27,   -27,
-     -27,   -27,    -8,   -27,   -27,    -8
+     -27,    19,   -27,   -27,   -11,   -26,   -23,   -19,   -10,    42,
+      42,    42,   -27,   -27,    60,   -27,    27,   -27,   -27,   -27,
+       6,    12,   -27,   -27,   -27,   -27,    22,   -27,     6,    37,
+      40,    46,    49,    -3,   -27,   -27,    38,   -27,   -27,    42,
+      42,    42,    42,   -27,    42,    42,    42,    42,   -11,    42,
+      35,    33,    42,   -27,   -27,   -27,     6,   -27,   -27,     6,
+       6,     6,     6,    12,    12,   -27,   -27,   -27,     6,   -27,
+     -27,     6
 };
 
 /* YYPGOTO[NTERM-NUM].  */
 static const yytype_int8 yypgoto[] =
 {
-     -27,   -27,   -27,   -27,   -27,   -27,   -27,   -27,   -26,    -1,
-     -11,   -10,    19,    20
+     -27,   -27,   -27,   -27,   -27,   -27,   -27,   -27,    13,    -1,
+      -8,    -4,    21,    23
 };
 
 /* YYTABLE[YYPACT[STATE-NUM]].  What to do in state STATE-NUM.  If
@@ -636,14 +634,15 @@ static const yytype_int8 yypgoto[] =
 #define YYTABLE_NINF -1
 static const yytype_uint8 yytable[] =
 {
-      20,    35,    42,    43,    44,    10,    40,    41,    11,    34,
-       2,     3,    23,     4,     5,     6,     7,     8,     9,    61,
-      12,    13,    10,    26,    30,    11,    50,    40,    41,    56,
-      57,    31,    58,    59,    60,    53,    10,    12,    13,    11,
-      14,    10,    32,    39,    11,    62,    33,    45,    65,    51,
-      24,    12,    13,    25,    26,    51,    12,    13,    52,    26,
-      36,    46,    47,    48,    49,    52,    63,     0,    64,     0,
-      37,    38
+      20,     9,    29,    10,    11,    30,    34,    35,    33,    31,
+      53,    44,    45,    23,    12,    13,    24,    25,    32,     2,
+      44,    45,     3,     4,     5,     6,     7,     8,    46,    47,
+      43,     9,    48,    10,    11,    56,    63,    64,    59,    60,
+      61,    62,    65,    66,    12,    13,    49,    14,    68,    50,
+       9,    71,    10,    11,     9,    51,    10,    11,    52,    54,
+      55,    67,    54,    12,    13,    55,    25,    12,    13,    36,
+      25,    69,     0,     0,    70,     0,     0,     0,    37,    38,
+      39,    40,    41,    42
 };
 
 #define yypact_value_is_default(Yystate) \
@@ -654,27 +653,29 @@ static const yytype_uint8 yytable[] =
 
 static const yytype_int8 yycheck[] =
 {
-       1,    11,    16,    17,    18,    12,    14,    15,    15,    10,
-       0,     1,     3,     3,     4,     5,     6,     7,     8,    45,
-      27,    28,    12,    30,    30,    15,    13,    14,    15,    40,
-      41,    30,    42,    43,    44,    36,    12,    27,    28,    15,
-      30,    12,    30,     3,    15,    46,    30,    10,    49,    26,
-      26,    27,    28,    29,    30,    26,    27,    28,    29,    30,
-       9,     9,     9,     9,     9,    29,    47,    -1,    48,    -1,
-      19,    20
+       1,    12,    28,    14,    15,    28,    10,    11,     9,    28,
+      13,    14,    15,    24,    25,    26,    27,    28,    28,     0,
+      14,    15,     3,     4,     5,     6,     7,     8,    16,    17,
+       3,    12,    10,    14,    15,    36,    44,    45,    39,    40,
+      41,    42,    46,    47,    25,    26,     9,    28,    49,     9,
+      12,    52,    14,    15,    12,     9,    14,    15,     9,    24,
+      27,    48,    24,    25,    26,    27,    28,    25,    26,     9,
+      28,    50,    -1,    -1,    51,    -1,    -1,    -1,    18,    19,
+      20,    21,    22,    23
 };
 
 /* YYSTOS[STATE-NUM] -- The (internal number of the) accessing
    symbol of state STATE-NUM.  */
 static const yytype_uint8 yystos[] =
 {
-       0,    34,     0,     1,     3,     4,     5,     6,     7,     8,
-      12,    15,    27,    28,    30,    35,    36,    37,    38,    39,
-      42,    43,    44,     3,    26,    29,    30,    40,    41,    42,
-      30,    30,    30,    30,    42,    44,     9,    19,    20,     3,
-      14,    15,    16,    17,    18,    10,     9,     9,     9,     9,
-      13,    26,    29,    42,    45,    46,    43,    43,    44,    44,
-      44,    41,    42,    45,    46,    42
+       0,    33,     0,     3,     4,     5,     6,     7,     8,    12,
+      14,    15,    25,    26,    28,    34,    35,    36,    37,    38,
+      41,    42,    43,    24,    27,    28,    39,    40,    41,    28,
+      28,    28,    28,    41,    43,    43,     9,    18,    19,    20,
+      21,    22,    23,     3,    14,    15,    16,    17,    10,     9,
+       9,     9,     9,    13,    24,    27,    41,    44,    45,    41,
+      41,    41,    41,    42,    42,    43,    43,    40,    41,    44,
+      45,    41
 };
 
 #define yyerrok		(yyerrstatus = 0)
@@ -1474,46 +1475,24 @@ yyreduce:
   YY_REDUCE_PRINT (yyn);
   switch (yyn)
     {
-        case 4:
+        case 9:
 /* Line 1792 of yacc.c  */
-#line 88 "y.y"
-    { lineCount++; }
-    break;
-
-  case 5:
-/* Line 1792 of yacc.c  */
-#line 89 "y.y"
-    { lineCount++; }
-    break;
-
-  case 6:
-/* Line 1792 of yacc.c  */
-#line 90 "y.y"
-    { yyerrok; lineCount++; }
+#line 92 "y.y"
+    { /* Silent execution */ }
     break;
 
   case 10:
 /* Line 1792 of yacc.c  */
-#line 97 "y.y"
-    { 
-        if((yyvsp[(1) - (1)].val).type == 0) printf("Result: %d\n", (yyvsp[(1) - (1)].val).i_val);
-        else if((yyvsp[(1) - (1)].val).type == 1) printf("Result: %.2f\n", (yyvsp[(1) - (1)].val).f_val);
-        else if((yyvsp[(1) - (1)].val).type == 2) printf("Result: %s\n", (yyvsp[(1) - (1)].val).s_val);
-    }
-    break;
-
-  case 11:
-/* Line 1792 of yacc.c  */
-#line 104 "y.y"
+#line 95 "y.y"
     {
         declareVar((yyvsp[(2) - (2)].str), "int");
         free((yyvsp[(2) - (2)].str));
     }
     break;
 
-  case 12:
+  case 11:
 /* Line 1792 of yacc.c  */
-#line 108 "y.y"
+#line 99 "y.y"
     {
         declareVar((yyvsp[(2) - (4)].str), "int");
         symbol *var = getSymbol((yyvsp[(2) - (4)].str));
@@ -1525,18 +1504,18 @@ yyreduce:
     }
     break;
 
-  case 13:
+  case 12:
 /* Line 1792 of yacc.c  */
-#line 117 "y.y"
+#line 108 "y.y"
     {
         declareVar((yyvsp[(2) - (2)].str), "float");
         free((yyvsp[(2) - (2)].str));
     }
     break;
 
-  case 14:
+  case 13:
 /* Line 1792 of yacc.c  */
-#line 121 "y.y"
+#line 112 "y.y"
     {
         declareVar((yyvsp[(2) - (4)].str), "float");
         symbol *var = getSymbol((yyvsp[(2) - (4)].str));
@@ -1548,18 +1527,18 @@ yyreduce:
     }
     break;
 
-  case 15:
+  case 14:
 /* Line 1792 of yacc.c  */
-#line 130 "y.y"
+#line 121 "y.y"
     {
         declareVar((yyvsp[(2) - (2)].str), "char");
         free((yyvsp[(2) - (2)].str));
     }
     break;
 
-  case 16:
+  case 15:
 /* Line 1792 of yacc.c  */
-#line 134 "y.y"
+#line 125 "y.y"
     {
         declareVar((yyvsp[(2) - (4)].str), "char");
         symbol *var = getSymbol((yyvsp[(2) - (4)].str));
@@ -1570,18 +1549,18 @@ yyreduce:
     }
     break;
 
-  case 17:
+  case 16:
 /* Line 1792 of yacc.c  */
-#line 142 "y.y"
+#line 133 "y.y"
     {
         declareVar((yyvsp[(2) - (2)].str), "string");
         free((yyvsp[(2) - (2)].str));
     }
     break;
 
-  case 18:
+  case 17:
 /* Line 1792 of yacc.c  */
-#line 146 "y.y"
+#line 137 "y.y"
     {
         declareVar((yyvsp[(2) - (4)].str), "string");
         symbol *var = getSymbol((yyvsp[(2) - (4)].str));
@@ -1591,132 +1570,138 @@ yyreduce:
     }
     break;
 
+  case 18:
+/* Line 1792 of yacc.c  */
+#line 146 "y.y"
+    {
+        update_variable((yyvsp[(1) - (3)].str), (yyvsp[(3) - (3)].val), '=');
+        free((yyvsp[(1) - (3)].str));
+    }
+    break;
+
   case 19:
 /* Line 1792 of yacc.c  */
-#line 155 "y.y"
+#line 150 "y.y"
     {
-        if (!varExists((yyvsp[(1) - (3)].str))) yyerror("Undeclared variable");
-        else {
-            symbol *var = getSymbol((yyvsp[(1) - (3)].str));
-            if (strcmp(var->type, "int") == 0) {
-                if ((yyvsp[(3) - (3)].val).type == 0) var->value.int_val = (yyvsp[(3) - (3)].val).i_val;
-                else if ((yyvsp[(3) - (3)].val).type == 1) var->value.int_val = (int)(yyvsp[(3) - (3)].val).f_val;
-                else yyerror("Cannot assign string to int");
-                var->is_initialized = 1;
-            } else if (strcmp(var->type, "float") == 0) {
-                if ((yyvsp[(3) - (3)].val).type == 1) var->value.float_val = (yyvsp[(3) - (3)].val).f_val;
-                else if ((yyvsp[(3) - (3)].val).type == 0) var->value.float_val = (float)(yyvsp[(3) - (3)].val).i_val;
-                else yyerror("Cannot assign string to float");
-                var->is_initialized = 1;
-            } else {
-                yyerror("Type mismatch or invalid assignment");
-            }
-        }
+        update_variable((yyvsp[(1) - (3)].str), (yyvsp[(3) - (3)].val), '+');
         free((yyvsp[(1) - (3)].str));
     }
     break;
 
   case 20:
 /* Line 1792 of yacc.c  */
-#line 175 "y.y"
+#line 154 "y.y"
     {
-        if (!varExists((yyvsp[(1) - (3)].str))) yyerror("Undeclared variable");
-        else {
-            symbol *var = getSymbol((yyvsp[(1) - (3)].str));
-            if (strcmp(var->type, "char") == 0) {
-                var->value.char_val = (yyvsp[(3) - (3)].str)[0];
-                var->is_initialized = 1;
-            } else if (strcmp(var->type, "string") == 0) {
-                char *str = malloc(2);
-                str[0] = (yyvsp[(3) - (3)].str)[0]; str[1] = '\0';
-                if (var->value.str_val) free(var->value.str_val);
-                var->value.str_val = str;
-                var->is_initialized = 1;
-            } else {
-                yyerror("Cannot assign char to numeric type");
-            }
-        }
+        update_variable((yyvsp[(1) - (3)].str), (yyvsp[(3) - (3)].val), '-');
         free((yyvsp[(1) - (3)].str));
-        free((yyvsp[(3) - (3)].str));
     }
     break;
 
   case 21:
 /* Line 1792 of yacc.c  */
-#line 195 "y.y"
+#line 158 "y.y"
     {
-        if (!varExists((yyvsp[(1) - (3)].str))) yyerror("Undeclared variable");
-        else {
-            symbol *var = getSymbol((yyvsp[(1) - (3)].str));
-            if (strcmp(var->type, "string") == 0) {
-                if (var->value.str_val) free(var->value.str_val);
-                var->value.str_val = (yyvsp[(3) - (3)].str);
-                var->is_initialized = 1;
-            } else {
-                yyerror("Cannot assign string to non-string type");
-                free((yyvsp[(3) - (3)].str));
-            }
-        }
+        update_variable((yyvsp[(1) - (3)].str), (yyvsp[(3) - (3)].val), '*');
         free((yyvsp[(1) - (3)].str));
     }
     break;
 
   case 22:
 /* Line 1792 of yacc.c  */
-#line 210 "y.y"
+#line 162 "y.y"
     {
-        if (!varExists((yyvsp[(1) - (2)].str))) yyerror("Undeclared variable");
-        else {
-            symbol *var = getSymbol((yyvsp[(1) - (2)].str));
-            if (strcmp(var->type, "int") == 0) var->value.int_val++;
-            else if (strcmp(var->type, "float") == 0) var->value.float_val += 1.0;
-            else yyerror("++ only for numeric types");
-        }
-        free((yyvsp[(1) - (2)].str));
+        update_variable((yyvsp[(1) - (3)].str), (yyvsp[(3) - (3)].val), '/');
+        free((yyvsp[(1) - (3)].str));
     }
     break;
 
   case 23:
 /* Line 1792 of yacc.c  */
-#line 220 "y.y"
+#line 166 "y.y"
     {
-        if (!varExists((yyvsp[(1) - (2)].str))) yyerror("Undeclared variable");
-        else {
-            symbol *var = getSymbol((yyvsp[(1) - (2)].str));
-            if (strcmp(var->type, "int") == 0) var->value.int_val--;
-            else if (strcmp(var->type, "float") == 0) var->value.float_val -= 1.0;
-            else yyerror("-- only for numeric types");
+        if (!varExists((yyvsp[(1) - (3)].str))) yyerror("Undeclared variable");
+        symbol *var = getSymbol((yyvsp[(1) - (3)].str));
+        if (strcmp(var->type, "char") == 0) {
+            var->value.char_val = (yyvsp[(3) - (3)].str)[0];
+            var->is_initialized = 1;
+        } else if (strcmp(var->type, "string") == 0) {
+             if (var->value.str_val) free(var->value.str_val);
+             char *s = malloc(2); s[0]=(yyvsp[(3) - (3)].str)[0]; s[1]='\0';
+             var->value.str_val = s;
+             var->is_initialized = 1;
+        } else {
+             yyerror("Type mismatch in assignment");
         }
-        free((yyvsp[(1) - (2)].str));
+        free((yyvsp[(1) - (3)].str)); free((yyvsp[(3) - (3)].str));
     }
     break;
 
   case 24:
 /* Line 1792 of yacc.c  */
-#line 233 "y.y"
+#line 182 "y.y"
+    {
+        if (!varExists((yyvsp[(1) - (3)].str))) yyerror("Undeclared variable");
+        symbol *var = getSymbol((yyvsp[(1) - (3)].str));
+        if (strcmp(var->type, "string") != 0) yyerror("Cannot assign string to non-string variable");
+        if (var->value.str_val) free(var->value.str_val);
+        var->value.str_val = (yyvsp[(3) - (3)].str);
+        var->is_initialized = 1;
+        free((yyvsp[(1) - (3)].str));
+    }
+    break;
+
+  case 25:
+/* Line 1792 of yacc.c  */
+#line 191 "y.y"
+    {
+        if (!varExists((yyvsp[(1) - (2)].str))) yyerror("Undeclared variable");
+        symbol *var = getSymbol((yyvsp[(1) - (2)].str));
+        if (strcmp(var->type, "int") == 0) var->value.int_val++;
+        else if (strcmp(var->type, "float") == 0) var->value.float_val += 1.0;
+        else yyerror("++ only for numeric types");
+        free((yyvsp[(1) - (2)].str));
+    }
+    break;
+
+  case 26:
+/* Line 1792 of yacc.c  */
+#line 199 "y.y"
+    {
+        if (!varExists((yyvsp[(1) - (2)].str))) yyerror("Undeclared variable");
+        symbol *var = getSymbol((yyvsp[(1) - (2)].str));
+        if (strcmp(var->type, "int") == 0) var->value.int_val--;
+        else if (strcmp(var->type, "float") == 0) var->value.float_val -= 1.0;
+        else yyerror("-- only for numeric types");
+        free((yyvsp[(1) - (2)].str));
+    }
+    break;
+
+  case 27:
+/* Line 1792 of yacc.c  */
+#line 209 "y.y"
     {
         execute_print((yyvsp[(2) - (2)].print_list));
         free_print_list((yyvsp[(2) - (2)].print_list));
     }
     break;
 
-  case 25:
+  case 28:
 /* Line 1792 of yacc.c  */
-#line 237 "y.y"
+#line 213 "y.y"
     {
         printf("\n");
     }
     break;
 
-  case 26:
+  case 29:
 /* Line 1792 of yacc.c  */
-#line 242 "y.y"
+#line 218 "y.y"
     { (yyval.print_list) = (yyvsp[(1) - (1)].print_list); }
     break;
 
-  case 27:
+  case 30:
 /* Line 1792 of yacc.c  */
-#line 243 "y.y"
+#line 219 "y.y"
     {
         print_item *current = (yyvsp[(1) - (3)].print_list);
         while (current->next) current = current->next;
@@ -1725,9 +1710,9 @@ yyreduce:
     }
     break;
 
-  case 28:
+  case 31:
 /* Line 1792 of yacc.c  */
-#line 251 "y.y"
+#line 227 "y.y"
     {
         (yyval.print_list) = create_print_item();
         (yyval.print_list)->type = PRINT_STRING;
@@ -1736,9 +1721,9 @@ yyreduce:
     }
     break;
 
-  case 29:
+  case 32:
 /* Line 1792 of yacc.c  */
-#line 257 "y.y"
+#line 233 "y.y"
     {
         (yyval.print_list) = create_print_item();
         (yyval.print_list)->type = PRINT_CHAR;
@@ -1747,68 +1732,64 @@ yyreduce:
     }
     break;
 
-  case 30:
+  case 33:
 /* Line 1792 of yacc.c  */
-#line 264 "y.y"
+#line 239 "y.y"
     {
         (yyval.print_list) = create_print_item();
         (yyval.print_list)->type = PRINT_EXPR;
+        
         (yyval.print_list)->value.expr_val.type = (yyvsp[(1) - (1)].val).type;
-        if ((yyvsp[(1) - (1)].val).type == 0) {
+        
+        if ((yyvsp[(1) - (1)].val).type == 0) { // int
             (yyval.print_list)->value.expr_val.value.i_val = (yyvsp[(1) - (1)].val).i_val;
-        } else if ((yyvsp[(1) - (1)].val).type == 1) {
+        } else if ((yyvsp[(1) - (1)].val).type == 1) { // float
             (yyval.print_list)->value.expr_val.value.f_val = (yyvsp[(1) - (1)].val).f_val;
-        } else if ((yyvsp[(1) - (1)].val).type == 2) {
+        } else if ((yyvsp[(1) - (1)].val).type == 2) { // string
             (yyval.print_list)->value.expr_val.value.s_val = (yyvsp[(1) - (1)].val).s_val ? strdup((yyvsp[(1) - (1)].val).s_val) : NULL;
         }
     }
     break;
 
-  case 31:
-/* Line 1792 of yacc.c  */
-#line 279 "y.y"
-    { (yyval.val) = (yyvsp[(1) - (1)].val); }
-    break;
-
-  case 32:
-/* Line 1792 of yacc.c  */
-#line 280 "y.y"
-    { (yyval.val) = do_math((yyvsp[(1) - (3)].val), (yyvsp[(3) - (3)].val), '+'); }
-    break;
-
-  case 33:
-/* Line 1792 of yacc.c  */
-#line 281 "y.y"
-    { (yyval.val) = do_math((yyvsp[(1) - (3)].val), (yyvsp[(3) - (3)].val), '-'); }
-    break;
-
   case 34:
 /* Line 1792 of yacc.c  */
-#line 284 "y.y"
+#line 255 "y.y"
     { (yyval.val) = (yyvsp[(1) - (1)].val); }
     break;
 
   case 35:
 /* Line 1792 of yacc.c  */
-#line 285 "y.y"
-    { (yyval.val) = do_math((yyvsp[(1) - (3)].val), (yyvsp[(3) - (3)].val), '*'); }
+#line 256 "y.y"
+    { (yyval.val) = do_math((yyvsp[(1) - (3)].val), (yyvsp[(3) - (3)].val), '+'); }
     break;
 
   case 36:
 /* Line 1792 of yacc.c  */
-#line 286 "y.y"
-    { (yyval.val) = do_math((yyvsp[(1) - (3)].val), (yyvsp[(3) - (3)].val), '/'); }
+#line 257 "y.y"
+    { (yyval.val) = do_math((yyvsp[(1) - (3)].val), (yyvsp[(3) - (3)].val), '-'); }
     break;
 
   case 37:
 /* Line 1792 of yacc.c  */
-#line 287 "y.y"
-    { (yyval.val) = do_math((yyvsp[(1) - (3)].val), (yyvsp[(3) - (3)].val), '%'); }
+#line 260 "y.y"
+    { (yyval.val) = (yyvsp[(1) - (1)].val); }
     break;
 
   case 38:
 /* Line 1792 of yacc.c  */
-#line 290 "y.y"
+#line 261 "y.y"
+    { (yyval.val) = do_math((yyvsp[(1) - (3)].val), (yyvsp[(3) - (3)].val), '*'); }
+    break;
+
+  case 39:
+/* Line 1792 of yacc.c  */
+#line 262 "y.y"
+    { (yyval.val) = do_math((yyvsp[(1) - (3)].val), (yyvsp[(3) - (3)].val), '/'); }
+    break;
+
+  case 40:
+/* Line 1792 of yacc.c  */
+#line 265 "y.y"
     { 
         (yyval.val).type = 0; 
         (yyval.val).i_val = (yyvsp[(1) - (1)].num); 
@@ -1816,9 +1797,9 @@ yyreduce:
     }
     break;
 
-  case 39:
+  case 41:
 /* Line 1792 of yacc.c  */
-#line 295 "y.y"
+#line 270 "y.y"
     { 
         (yyval.val).type = 1; 
         (yyval.val).i_val = 0; 
@@ -1826,44 +1807,31 @@ yyreduce:
     }
     break;
 
-  case 40:
+  case 42:
 /* Line 1792 of yacc.c  */
-#line 300 "y.y"
+#line 275 "y.y"
     {
-        if (!varExists((yyvsp[(1) - (1)].str))) {
-            yyerror("Undeclared variable");
-            (yyval.val).type = 0; (yyval.val).i_val = 0;
+        if (!varExists((yyvsp[(1) - (1)].str))) yyerror("Undeclared variable");
+        symbol *var = getSymbol((yyvsp[(1) - (1)].str));
+        if (strcmp(var->type, "int") == 0) {
+            (yyval.val).type = 0; (yyval.val).i_val = var->value.int_val;
+        } else if (strcmp(var->type, "float") == 0) {
+            (yyval.val).type = 1; (yyval.val).f_val = var->value.float_val;
+        } else if (strcmp(var->type, "char") == 0) {
+            (yyval.val).type = 0; (yyval.val).i_val = (int)var->value.char_val; 
+        } else if (strcmp(var->type, "string") == 0) {
+            (yyval.val).type = 2; (yyval.val).s_val = var->value.str_val;
         } else {
-            symbol *var = getSymbol((yyvsp[(1) - (1)].str));
-            if (strcmp(var->type, "int") == 0) {
-                (yyval.val).type = 0;
-                (yyval.val).i_val = var->value.int_val;
-            } else if (strcmp(var->type, "float") == 0) {
-                (yyval.val).type = 1;
-                (yyval.val).f_val = var->value.float_val;
-            
-            /* --- ADD THIS BLOCK --- */
-            } else if (strcmp(var->type, "char") == 0) {
-                (yyval.val).type = 0; // Treat char as int (ASCII value) for printing/math
-                (yyval.val).i_val = (int)var->value.char_val; 
-            /* ---------------------- */
-
-            } else if (strcmp(var->type, "string") == 0) {
-                (yyval.val).type = 2;
-                (yyval.val).s_val = var->value.str_val;
-            } else {
-                yyerror("Unsupported variable type in expression");
-                (yyval.val).type = 0; (yyval.val).i_val = 0;
-            }
-            var->is_used = 1;
+             (yyval.val).type=0; 
         }
+        var->is_used = 1;
         free((yyvsp[(1) - (1)].str));
     }
     break;
 
-  case 41:
+  case 43:
 /* Line 1792 of yacc.c  */
-#line 330 "y.y"
+#line 292 "y.y"
     { 
         (yyval.val) = (yyvsp[(2) - (2)].val);
         if((yyval.val).type == 0) (yyval.val).i_val = -(yyval.val).i_val;
@@ -1872,24 +1840,33 @@ yyreduce:
     }
     break;
 
-  case 42:
+  case 44:
 /* Line 1792 of yacc.c  */
-#line 336 "y.y"
+#line 298 "y.y"
+    { 
+        (yyval.val) = (yyvsp[(2) - (2)].val); 
+        if((yyval.val).type == 2) yyerror("Cannot use + on string");
+    }
+    break;
+
+  case 45:
+/* Line 1792 of yacc.c  */
+#line 302 "y.y"
     { (yyval.val) = (yyvsp[(2) - (3)].val); }
     break;
 
-  case 43:
+  case 46:
 /* Line 1792 of yacc.c  */
-#line 339 "y.y"
+#line 305 "y.y"
     {
         (yyval.str) = removeQuotes((yyvsp[(1) - (1)].str));
         free((yyvsp[(1) - (1)].str));
     }
     break;
 
-  case 44:
+  case 47:
 /* Line 1792 of yacc.c  */
-#line 345 "y.y"
+#line 311 "y.y"
     {
         (yyval.str) = removeQuotes((yyvsp[(1) - (1)].str));
         free((yyvsp[(1) - (1)].str));
@@ -1898,7 +1875,7 @@ yyreduce:
 
 
 /* Line 1792 of yacc.c  */
-#line 1902 "y.tab.c"
+#line 1879 "y.tab.c"
       default: break;
     }
   /* User semantic actions sometimes alter yychar, and that requires
@@ -2130,10 +2107,51 @@ yyreturn:
 
 
 /* Line 2055 of yacc.c  */
-#line 351 "y.y"
+#line 317 "y.y"
 
 
-/* C Helper Functions */
+/* --- Helper Functions --- */
+
+void update_variable(char *name, ExprVal val, char op) {
+    if (!varExists(name)) yyerror("Undeclared variable");
+    
+    symbol *var = getSymbol(name);
+    
+    float val_f = (val.type == 1) ? val.f_val : (float)val.i_val;
+    int val_i   = (val.type == 0) ? val.i_val : (int)val.f_val;
+    
+    if (strcmp(var->type, "int") == 0) {
+        if (val.type == 2) yyerror("Cannot assign string to int");
+        switch(op) {
+            case '=': var->value.int_val = val_i; break;
+            case '+': var->value.int_val += val_i; break;
+            case '-': var->value.int_val -= val_i; break;
+            case '*': var->value.int_val *= val_i; break;
+            case '/': 
+                if (val_i == 0) yyerror("Division by zero");
+                var->value.int_val /= val_i; 
+                break;
+        }
+        var->is_initialized = 1;
+    } 
+    else if (strcmp(var->type, "float") == 0) {
+        if (val.type == 2) yyerror("Cannot assign string to float");
+        switch(op) {
+            case '=': var->value.float_val = val_f; break;
+            case '+': var->value.float_val += val_f; break;
+            case '-': var->value.float_val -= val_f; break;
+            case '*': var->value.float_val *= val_f; break;
+            case '/': 
+                if (val_f == 0.0) yyerror("Division by zero");
+                var->value.float_val /= val_f; 
+                break;
+        }
+        var->is_initialized = 1;
+    }
+    else {
+        yyerror("Invalid operation on non-numeric variable");
+    }
+}
 
 ExprVal do_math(ExprVal v1, ExprVal v2, char op) {
     ExprVal res;
@@ -2141,25 +2159,13 @@ ExprVal do_math(ExprVal v1, ExprVal v2, char op) {
 
     if (v1.type == 2 || v2.type == 2) {
         yyerror("Cannot perform arithmetic on strings");
-        res.type = 0; 
-        return res;
     }
 
     int is_float = (v1.type == 1 || v2.type == 1);
-    
     float f1 = (v1.type == 0) ? (float)v1.i_val : v1.f_val;
     float f2 = (v2.type == 0) ? (float)v2.i_val : v2.f_val;
-    
-    if (op == '%') {
-        res.type = 0;
-        if (is_float) {
-            yyerror("Modulo operator requires integers");
-        } else {
-            if (v2.i_val == 0) yyerror("Modulo by zero");
-            else res.i_val = v1.i_val % v2.i_val;
-        }
-        return res;
-    }
+
+    /* Removed Modulo Case */
 
     res.type = is_float ? 1 : 0;
 
@@ -2177,12 +2183,9 @@ ExprVal do_math(ExprVal v1, ExprVal v2, char op) {
             else res.i_val = v1.i_val * v2.i_val; 
             break;
         case '/': 
-            if (f2 == 0) { 
-                yyerror("Division by zero"); 
-            } else {
-                if(is_float) res.f_val = f1 / f2; 
-                else res.i_val = v1.i_val / v2.i_val; 
-            }
+            if (f2 == 0) yyerror("Division by zero");
+            if(is_float) res.f_val = f1 / f2; 
+            else res.i_val = v1.i_val / v2.i_val; 
             break;
     }
     return res;
@@ -2214,14 +2217,9 @@ int varExists(const char *name) {
 }
 
 void declareVar(const char *name, const char *type) {
-    if (varExists(name)) {
-        yyerror("Redeclaration of variable");
-        return;
-    }
-    if (symCount >= 100) {
-        yyerror("Symbol table overflow");
-        return;
-    }
+    if (varExists(name)) yyerror("Redeclaration of variable");
+    if (symCount >= 100) yyerror("Symbol table overflow");
+    
     strcpy(table[symCount].name, name);
     strcpy(table[symCount].type, type);
     table[symCount].value.int_val = 0; 
@@ -2233,10 +2231,6 @@ void declareVar(const char *name, const char *type) {
 
 print_item* create_print_item() {
     print_item *item = (print_item*)malloc(sizeof(print_item));
-    if (!item) {
-        perror("Failed to allocate print_item");
-        exit(EXIT_FAILURE);
-    }
     item->next = NULL;
     item->value.str = NULL; 
     return item;
@@ -2247,7 +2241,8 @@ void free_print_list(print_item *list) {
         print_item *next = list->next;
         if (list->type == PRINT_STRING && list->value.str) {
             free(list->value.str);
-        } else if (list->type == PRINT_EXPR && list->value.expr_val.type == 2 && list->value.expr_val.value.s_val) {
+        } 
+        else if (list->type == PRINT_EXPR && list->value.expr_val.type == 2 && list->value.expr_val.value.s_val) {
             free(list->value.expr_val.value.s_val);
         }
         free(list);
@@ -2304,10 +2299,8 @@ void check_unused_variables() {
 }
 
 int main(void) {
-    lineCount = 1;
-    
+    yylineno = 1;
     int result = yyparse();
-    
     check_unused_variables();
     
     for (int i = 0; i < symCount; i++) {
@@ -2319,5 +2312,6 @@ int main(void) {
 }
 
 void yyerror(const char *s) {
-    fprintf(stderr, "LINE %d ERROR: %s\n", lineCount, s);
+    fprintf(stderr, "LINE %d ERROR: %s\n", yylineno, s);
+    exit(1); 
 }
