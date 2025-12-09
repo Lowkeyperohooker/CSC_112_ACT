@@ -5,8 +5,8 @@
 
 /* Definition for Math Expressions */
 typedef struct {
-    int type;      // 0 = int, 1 = float, 2 = string
-    int i_val;
+    int type;      // 0 = int, 1 = float, 2 = string, 3 = char
+    int i_val;     // used for int and char (ASCII)
     float f_val;
     char *s_val;   
 } ExprVal;
@@ -18,7 +18,7 @@ typedef struct print_item {
         char *str;
         char char_val;
         struct {
-            int type; // 0=int, 1=float, 2=string
+            int type; // 0=int, 1=float, 2=string, 3=char
             union {
                 int i_val;
                 float f_val;

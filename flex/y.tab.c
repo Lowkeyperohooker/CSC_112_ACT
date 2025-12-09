@@ -99,7 +99,7 @@ int symCount = 0;
 symbol* getSymbol(const char *name);
 int varExists(const char *name);
 void declareVar(const char *name, const char *type);
-char* removeQuotes(const char *quoted_str);
+char* processString(const char *raw_str); /* UPDATED NAME */
 ExprVal do_math(ExprVal v1, ExprVal v2, char op);
 void update_variable(char *name, ExprVal val, char op);
 
@@ -533,12 +533,12 @@ static const yytype_int8 yyrhs[] =
 /* YYRLINE[YYN] -- source line where rule number YYN was defined.  */
 static const yytype_uint16 yyrline[] =
 {
-       0,    84,    84,    85,    89,    90,    91,    94,    95,    96,
-      97,   100,   104,   113,   117,   126,   130,   138,   142,   151,
-     155,   159,   163,   167,   171,   187,   197,   206,   215,   224,
-     234,   238,   243,   244,   252,   258,   264,   281,   282,   283,
-     286,   287,   288,   291,   296,   301,   318,   324,   328,   331,
-     337
+       0,    84,    84,    85,    88,    89,    90,    93,    94,    95,
+      96,    99,   103,   112,   116,   125,   129,   137,   141,   150,
+     154,   158,   162,   166,   170,   186,   195,   203,   211,   219,
+     229,   233,   238,   239,   247,   253,   261,   279,   280,   281,
+     284,   285,   286,   289,   294,   299,   317,   323,   327,   330,
+     336
 };
 #endif
 
@@ -1487,13 +1487,13 @@ yyreduce:
     {
         case 10:
 /* Line 1792 of yacc.c  */
-#line 97 "y.y"
+#line 96 "y.y"
     { /* Silent execution */ }
     break;
 
   case 11:
 /* Line 1792 of yacc.c  */
-#line 100 "y.y"
+#line 99 "y.y"
     {
         declareVar((yyvsp[(2) - (2)].str), "int");
         free((yyvsp[(2) - (2)].str));
@@ -1502,11 +1502,11 @@ yyreduce:
 
   case 12:
 /* Line 1792 of yacc.c  */
-#line 104 "y.y"
+#line 103 "y.y"
     {
         declareVar((yyvsp[(2) - (4)].str), "int");
         symbol *var = getSymbol((yyvsp[(2) - (4)].str));
-        if ((yyvsp[(4) - (4)].val).type == 0) var->value.int_val = (yyvsp[(4) - (4)].val).i_val;
+        if ((yyvsp[(4) - (4)].val).type == 0 || (yyvsp[(4) - (4)].val).type == 3) var->value.int_val = (yyvsp[(4) - (4)].val).i_val;
         else if ((yyvsp[(4) - (4)].val).type == 1) var->value.int_val = (int)(yyvsp[(4) - (4)].val).f_val;
         else yyerror("Cannot assign string to int");
         var->is_initialized = 1;
@@ -1516,7 +1516,7 @@ yyreduce:
 
   case 13:
 /* Line 1792 of yacc.c  */
-#line 113 "y.y"
+#line 112 "y.y"
     {
         declareVar((yyvsp[(2) - (2)].str), "float");
         free((yyvsp[(2) - (2)].str));
@@ -1525,12 +1525,12 @@ yyreduce:
 
   case 14:
 /* Line 1792 of yacc.c  */
-#line 117 "y.y"
+#line 116 "y.y"
     {
         declareVar((yyvsp[(2) - (4)].str), "float");
         symbol *var = getSymbol((yyvsp[(2) - (4)].str));
         if ((yyvsp[(4) - (4)].val).type == 1) var->value.float_val = (yyvsp[(4) - (4)].val).f_val;
-        else if ((yyvsp[(4) - (4)].val).type == 0) var->value.float_val = (float)(yyvsp[(4) - (4)].val).i_val;
+        else if ((yyvsp[(4) - (4)].val).type == 0 || (yyvsp[(4) - (4)].val).type == 3) var->value.float_val = (float)(yyvsp[(4) - (4)].val).i_val;
         else yyerror("Cannot assign string to float");
         var->is_initialized = 1;
         free((yyvsp[(2) - (4)].str));
@@ -1539,7 +1539,7 @@ yyreduce:
 
   case 15:
 /* Line 1792 of yacc.c  */
-#line 126 "y.y"
+#line 125 "y.y"
     {
         declareVar((yyvsp[(2) - (2)].str), "char");
         free((yyvsp[(2) - (2)].str));
@@ -1548,7 +1548,7 @@ yyreduce:
 
   case 16:
 /* Line 1792 of yacc.c  */
-#line 130 "y.y"
+#line 129 "y.y"
     {
         declareVar((yyvsp[(2) - (4)].str), "char");
         symbol *var = getSymbol((yyvsp[(2) - (4)].str));
@@ -1561,7 +1561,7 @@ yyreduce:
 
   case 17:
 /* Line 1792 of yacc.c  */
-#line 138 "y.y"
+#line 137 "y.y"
     {
         declareVar((yyvsp[(2) - (2)].str), "string");
         free((yyvsp[(2) - (2)].str));
@@ -1570,7 +1570,7 @@ yyreduce:
 
   case 18:
 /* Line 1792 of yacc.c  */
-#line 142 "y.y"
+#line 141 "y.y"
     {
         declareVar((yyvsp[(2) - (4)].str), "string");
         symbol *var = getSymbol((yyvsp[(2) - (4)].str));
@@ -1582,7 +1582,7 @@ yyreduce:
 
   case 19:
 /* Line 1792 of yacc.c  */
-#line 151 "y.y"
+#line 150 "y.y"
     {
         update_variable((yyvsp[(1) - (3)].str), (yyvsp[(3) - (3)].val), '=');
         free((yyvsp[(1) - (3)].str));
@@ -1591,7 +1591,7 @@ yyreduce:
 
   case 20:
 /* Line 1792 of yacc.c  */
-#line 155 "y.y"
+#line 154 "y.y"
     {
         update_variable((yyvsp[(1) - (3)].str), (yyvsp[(3) - (3)].val), '+');
         free((yyvsp[(1) - (3)].str));
@@ -1600,7 +1600,7 @@ yyreduce:
 
   case 21:
 /* Line 1792 of yacc.c  */
-#line 159 "y.y"
+#line 158 "y.y"
     {
         update_variable((yyvsp[(1) - (3)].str), (yyvsp[(3) - (3)].val), '-');
         free((yyvsp[(1) - (3)].str));
@@ -1609,7 +1609,7 @@ yyreduce:
 
   case 22:
 /* Line 1792 of yacc.c  */
-#line 163 "y.y"
+#line 162 "y.y"
     {
         update_variable((yyvsp[(1) - (3)].str), (yyvsp[(3) - (3)].val), '*');
         free((yyvsp[(1) - (3)].str));
@@ -1618,7 +1618,7 @@ yyreduce:
 
   case 23:
 /* Line 1792 of yacc.c  */
-#line 167 "y.y"
+#line 166 "y.y"
     {
         update_variable((yyvsp[(1) - (3)].str), (yyvsp[(3) - (3)].val), '/');
         free((yyvsp[(1) - (3)].str));
@@ -1627,7 +1627,7 @@ yyreduce:
 
   case 24:
 /* Line 1792 of yacc.c  */
-#line 171 "y.y"
+#line 170 "y.y"
     {
         if (!varExists((yyvsp[(1) - (3)].str))) yyerror("Undeclared variable");
         symbol *var = getSymbol((yyvsp[(1) - (3)].str));
@@ -1648,7 +1648,7 @@ yyreduce:
 
   case 25:
 /* Line 1792 of yacc.c  */
-#line 187 "y.y"
+#line 186 "y.y"
     {
         if (!varExists((yyvsp[(1) - (3)].str))) yyerror("Undeclared variable");
         symbol *var = getSymbol((yyvsp[(1) - (3)].str));
@@ -1662,7 +1662,7 @@ yyreduce:
 
   case 26:
 /* Line 1792 of yacc.c  */
-#line 197 "y.y"
+#line 195 "y.y"
     {
         if (!varExists((yyvsp[(1) - (2)].str))) yyerror("Undeclared variable");
         symbol *var = getSymbol((yyvsp[(1) - (2)].str));
@@ -1675,7 +1675,7 @@ yyreduce:
 
   case 27:
 /* Line 1792 of yacc.c  */
-#line 206 "y.y"
+#line 203 "y.y"
     {
         if (!varExists((yyvsp[(1) - (2)].str))) yyerror("Undeclared variable");
         symbol *var = getSymbol((yyvsp[(1) - (2)].str));
@@ -1688,7 +1688,7 @@ yyreduce:
 
   case 28:
 /* Line 1792 of yacc.c  */
-#line 215 "y.y"
+#line 211 "y.y"
     {
         if (!varExists((yyvsp[(2) - (2)].str))) yyerror("Undeclared variable");
         symbol *var = getSymbol((yyvsp[(2) - (2)].str));
@@ -1701,7 +1701,7 @@ yyreduce:
 
   case 29:
 /* Line 1792 of yacc.c  */
-#line 224 "y.y"
+#line 219 "y.y"
     {
         if (!varExists((yyvsp[(2) - (2)].str))) yyerror("Undeclared variable");
         symbol *var = getSymbol((yyvsp[(2) - (2)].str));
@@ -1714,7 +1714,7 @@ yyreduce:
 
   case 30:
 /* Line 1792 of yacc.c  */
-#line 234 "y.y"
+#line 229 "y.y"
     {
         execute_print((yyvsp[(2) - (2)].print_list));
         free_print_list((yyvsp[(2) - (2)].print_list));
@@ -1723,7 +1723,7 @@ yyreduce:
 
   case 31:
 /* Line 1792 of yacc.c  */
-#line 238 "y.y"
+#line 233 "y.y"
     {
         printf("\n");
     }
@@ -1731,13 +1731,13 @@ yyreduce:
 
   case 32:
 /* Line 1792 of yacc.c  */
-#line 243 "y.y"
+#line 238 "y.y"
     { (yyval.print_list) = (yyvsp[(1) - (1)].print_list); }
     break;
 
   case 33:
 /* Line 1792 of yacc.c  */
-#line 244 "y.y"
+#line 239 "y.y"
     {
         print_item *current = (yyvsp[(1) - (3)].print_list);
         while (current->next) current = current->next;
@@ -1748,85 +1748,88 @@ yyreduce:
 
   case 34:
 /* Line 1792 of yacc.c  */
-#line 252 "y.y"
+#line 247 "y.y"
     {
         (yyval.print_list) = create_print_item();
         (yyval.print_list)->type = PRINT_STRING;
-        (yyval.print_list)->value.str = removeQuotes((yyvsp[(1) - (1)].str));
+        (yyval.print_list)->value.str = processString((yyvsp[(1) - (1)].str)); /* UPDATED */
         free((yyvsp[(1) - (1)].str));
     }
     break;
 
   case 35:
 /* Line 1792 of yacc.c  */
-#line 258 "y.y"
+#line 253 "y.y"
     {
         (yyval.print_list) = create_print_item();
         (yyval.print_list)->type = PRINT_CHAR;
-        (yyval.print_list)->value.char_val = removeQuotes((yyvsp[(1) - (1)].str))[0];
+        char *temp = processString((yyvsp[(1) - (1)].str)); /* UPDATED */
+        (yyval.print_list)->value.char_val = temp[0];
+        free(temp);
         free((yyvsp[(1) - (1)].str));
     }
     break;
 
   case 36:
 /* Line 1792 of yacc.c  */
-#line 264 "y.y"
+#line 261 "y.y"
     {
         (yyval.print_list) = create_print_item();
         (yyval.print_list)->type = PRINT_EXPR;
         
         (yyval.print_list)->value.expr_val.type = (yyvsp[(1) - (1)].val).type;
         
-        /* Updated to match your types.h nested structure */
         if ((yyvsp[(1) - (1)].val).type == 0) { // int
             (yyval.print_list)->value.expr_val.value.i_val = (yyvsp[(1) - (1)].val).i_val;
         } else if ((yyvsp[(1) - (1)].val).type == 1) { // float
             (yyval.print_list)->value.expr_val.value.f_val = (yyvsp[(1) - (1)].val).f_val;
         } else if ((yyvsp[(1) - (1)].val).type == 2) { // string
             (yyval.print_list)->value.expr_val.value.s_val = (yyvsp[(1) - (1)].val).s_val ? strdup((yyvsp[(1) - (1)].val).s_val) : NULL;
+        } else if ((yyvsp[(1) - (1)].val).type == 3) { // char
+            (yyval.print_list)->value.expr_val.value.i_val = (yyvsp[(1) - (1)].val).i_val;
         }
     }
     break;
 
   case 37:
 /* Line 1792 of yacc.c  */
-#line 281 "y.y"
+#line 279 "y.y"
     { (yyval.val) = (yyvsp[(1) - (1)].val); }
     break;
 
   case 38:
 /* Line 1792 of yacc.c  */
-#line 282 "y.y"
+#line 280 "y.y"
     { (yyval.val) = do_math((yyvsp[(1) - (3)].val), (yyvsp[(3) - (3)].val), '+'); }
     break;
 
   case 39:
 /* Line 1792 of yacc.c  */
-#line 283 "y.y"
+#line 281 "y.y"
     { (yyval.val) = do_math((yyvsp[(1) - (3)].val), (yyvsp[(3) - (3)].val), '-'); }
     break;
 
   case 40:
 /* Line 1792 of yacc.c  */
-#line 286 "y.y"
+#line 284 "y.y"
     { (yyval.val) = (yyvsp[(1) - (1)].val); }
     break;
 
   case 41:
 /* Line 1792 of yacc.c  */
-#line 287 "y.y"
+#line 285 "y.y"
     { (yyval.val) = do_math((yyvsp[(1) - (3)].val), (yyvsp[(3) - (3)].val), '*'); }
     break;
 
   case 42:
 /* Line 1792 of yacc.c  */
-#line 288 "y.y"
+#line 286 "y.y"
     { (yyval.val) = do_math((yyvsp[(1) - (3)].val), (yyvsp[(3) - (3)].val), '/'); }
     break;
 
   case 43:
 /* Line 1792 of yacc.c  */
-#line 291 "y.y"
+#line 289 "y.y"
     { 
         (yyval.val).type = 0; 
         (yyval.val).i_val = (yyvsp[(1) - (1)].num); 
@@ -1836,7 +1839,7 @@ yyreduce:
 
   case 44:
 /* Line 1792 of yacc.c  */
-#line 296 "y.y"
+#line 294 "y.y"
     { 
         (yyval.val).type = 1; 
         (yyval.val).i_val = 0; 
@@ -1846,7 +1849,7 @@ yyreduce:
 
   case 45:
 /* Line 1792 of yacc.c  */
-#line 301 "y.y"
+#line 299 "y.y"
     {
         if (!varExists((yyvsp[(1) - (1)].str))) yyerror("Undeclared variable");
         symbol *var = getSymbol((yyvsp[(1) - (1)].str));
@@ -1855,7 +1858,8 @@ yyreduce:
         } else if (strcmp(var->type, "float") == 0) {
             (yyval.val).type = 1; (yyval.val).f_val = var->value.float_val;
         } else if (strcmp(var->type, "char") == 0) {
-            (yyval.val).type = 0; (yyval.val).i_val = (int)var->value.char_val; 
+            (yyval.val).type = 3; /* Type 3 for Char */
+            (yyval.val).i_val = (int)var->value.char_val; 
         } else if (strcmp(var->type, "string") == 0) {
             (yyval.val).type = 2; (yyval.val).s_val = var->value.str_val;
         } else {
@@ -1868,10 +1872,10 @@ yyreduce:
 
   case 46:
 /* Line 1792 of yacc.c  */
-#line 318 "y.y"
+#line 317 "y.y"
     { 
         (yyval.val) = (yyvsp[(2) - (2)].val);
-        if((yyval.val).type == 0) (yyval.val).i_val = -(yyval.val).i_val;
+        if((yyval.val).type == 0 || (yyval.val).type == 3) (yyval.val).i_val = -(yyval.val).i_val;
         else if((yyval.val).type == 1) (yyval.val).f_val = -(yyval.val).f_val;
         else yyerror("Cannot negate a string");
     }
@@ -1879,7 +1883,7 @@ yyreduce:
 
   case 47:
 /* Line 1792 of yacc.c  */
-#line 324 "y.y"
+#line 323 "y.y"
     { 
         (yyval.val) = (yyvsp[(2) - (2)].val); 
         if((yyval.val).type == 2) yyerror("Cannot use + on string");
@@ -1888,31 +1892,32 @@ yyreduce:
 
   case 48:
 /* Line 1792 of yacc.c  */
-#line 328 "y.y"
+#line 327 "y.y"
     { (yyval.val) = (yyvsp[(2) - (3)].val); }
     break;
 
   case 49:
 /* Line 1792 of yacc.c  */
-#line 331 "y.y"
+#line 330 "y.y"
     {
-        (yyval.str) = removeQuotes((yyvsp[(1) - (1)].str));
+        (yyval.str) = processString((yyvsp[(1) - (1)].str)); /* UPDATED */
         free((yyvsp[(1) - (1)].str));
     }
     break;
 
   case 50:
 /* Line 1792 of yacc.c  */
-#line 337 "y.y"
+#line 336 "y.y"
     {
-        (yyval.str) = removeQuotes((yyvsp[(1) - (1)].str));
+        char* temp = processString((yyvsp[(1) - (1)].str)); /* UPDATED */
+        (yyval.str) = temp;
         free((yyvsp[(1) - (1)].str));
     }
     break;
 
 
 /* Line 1792 of yacc.c  */
-#line 1916 "y.tab.c"
+#line 1921 "y.tab.c"
       default: break;
     }
   /* User semantic actions sometimes alter yychar, and that requires
@@ -2155,7 +2160,7 @@ void update_variable(char *name, ExprVal val, char op) {
     symbol *var = getSymbol(name);
     
     float val_f = (val.type == 1) ? val.f_val : (float)val.i_val;
-    int val_i   = (val.type == 0) ? val.i_val : (int)val.f_val;
+    int val_i   = (val.type == 1) ? (int)val.f_val : val.i_val;
     
     if (strcmp(var->type, "int") == 0) {
         if (val.type == 2) yyerror("Cannot assign string to int");
@@ -2165,7 +2170,6 @@ void update_variable(char *name, ExprVal val, char op) {
             case '-': var->value.int_val -= val_i; break;
             case '*': var->value.int_val *= val_i; break;
             case '/': 
-                // Using tools.c function for integer check
                 if (checkError(var->value.int_val, val_i) == -1) yyerror("Division by zero");
                 var->value.int_val /= val_i; 
                 break;
@@ -2200,50 +2204,75 @@ ExprVal do_math(ExprVal v1, ExprVal v2, char op) {
     }
 
     int is_float = (v1.type == 1 || v2.type == 1);
-    float f1 = (v1.type == 0) ? (float)v1.i_val : v1.f_val;
-    float f2 = (v2.type == 0) ? (float)v2.i_val : v2.f_val;
+    
+    float f1 = (v1.type == 1) ? v1.f_val : (float)v1.i_val;
+    float f2 = (v2.type == 1) ? v2.f_val : (float)v2.i_val;
+    
+    int i1 = (v1.type == 1) ? (int)v1.f_val : v1.i_val;
+    int i2 = (v2.type == 1) ? (int)v2.f_val : v2.i_val;
 
     res.type = is_float ? 1 : 0;
 
     switch(op) {
         case '+': 
             if(is_float) res.f_val = f1 + f2; 
-            else res.i_val = v1.i_val + v2.i_val; 
+            else res.i_val = i1 + i2; 
             break;
         case '-': 
             if(is_float) res.f_val = f1 - f2; 
-            else res.i_val = v1.i_val - v2.i_val; 
+            else res.i_val = i1 - i2; 
             break;
         case '*': 
             if(is_float) res.f_val = f1 * f2; 
-            else res.i_val = v1.i_val * v2.i_val; 
+            else res.i_val = i1 * i2; 
             break;
         case '/': 
             if (is_float) {
                 if (f2 == 0.0) yyerror("Division by zero");
                 res.f_val = f1 / f2;
             } else {
-                // Using tools.c function for integer check
-                if (checkError(v1.i_val, v2.i_val) == -1) yyerror("Division by zero");
-                res.i_val = v1.i_val / v2.i_val; 
+                if (checkError(i1, i2) == -1) yyerror("Division by zero");
+                res.i_val = i1 / i2; 
             }
             break;
     }
     return res;
 }
 
-char* removeQuotes(const char *quoted_str) {
-    if (quoted_str == NULL) return NULL;
-    int len = strlen(quoted_str);
-    if (len >= 2 && (quoted_str[0] == '"' || quoted_str[0] == '\'') && quoted_str[0] == quoted_str[len-1]) {
-        char *result = malloc(len - 1);
-        if (result) {
-            strncpy(result, quoted_str + 1, len - 2);
-            result[len - 2] = '\0';
-            return result;
+/* REPLACED removeQuotes with processString to handle \n */
+char* processString(const char *raw_str) {
+    if (raw_str == NULL) return NULL;
+    int len = strlen(raw_str);
+    
+    char *processed = malloc(len + 1);
+    if (!processed) return NULL;
+
+    int i = 0, j = 0;
+    
+    // Check for surrounding quotes to strip them
+    int start = 0, end = len;
+    if (len >= 2 && (raw_str[0] == '"' || raw_str[0] == '\'') && raw_str[0] == raw_str[len-1]) {
+        start = 1;
+        end = len - 1;
+    }
+
+    // Iterate through the string processing escapes
+    for (i = start; i < end; i++) {
+        if (raw_str[i] == '\\' && i + 1 < end) {
+            switch (raw_str[i+1]) {
+                case 'n': processed[j++] = '\n'; i++; break; // Newline
+                case 't': processed[j++] = '\t'; i++; break; // Tab
+                case '\\': processed[j++] = '\\'; i++; break; // Backslash
+                case '"': processed[j++] = '\"'; i++; break; // Double Quote
+                case '\'': processed[j++] = '\''; i++; break; // Single Quote
+                default: processed[j++] = raw_str[i]; break; // Ignore invalid escape
+            }
+        } else {
+            processed[j++] = raw_str[i];
         }
     }
-    return strdup(quoted_str);
+    processed[j] = '\0';
+    return processed;
 }
 
 symbol* getSymbol(const char *name) {
@@ -2291,30 +2320,42 @@ void free_print_list(print_item *list) {
     }
 }
 
+/* UPDATED execute_print to handle spacing around newlines */
 void execute_print(print_item *list) {
-    int first_item = 1;
     print_item *current = list;
-    
+    int last_was_newline = 0; /* Tracks if the previous print ended in \n */
+
     while (current) {
-        if (!first_item) printf(" ");
-        first_item = 0;
-        
+        /* Only print a space if it's NOT the first item AND the last item didn't end in \n */
+        if (current != list && !last_was_newline) {
+            printf(" ");
+        }
+
         switch (current->type) {
             case PRINT_STRING:
                 printf("%s", current->value.str);
+                if (current->value.str && strlen(current->value.str) > 0) {
+                     char last = current->value.str[strlen(current->value.str) - 1];
+                     last_was_newline = (last == '\n');
+                } else {
+                     last_was_newline = 0;
+                }
                 break;
             case PRINT_CHAR:
                 printf("%c", current->value.char_val);
+                last_was_newline = (current->value.char_val == '\n');
                 break;
             case PRINT_EXPR:
-                // Access path updated for nested struct in your types.h
                 if (current->value.expr_val.type == 1) { // Float
                     printf("%.2f", current->value.expr_val.value.f_val);
                 } else if (current->value.expr_val.type == 0) { // Int
                     printf("%d", current->value.expr_val.value.i_val);
                 } else if (current->value.expr_val.type == 2) { // String Variable
                     printf("%s", current->value.expr_val.value.s_val ? current->value.expr_val.value.s_val : "(null)");
+                } else if (current->value.expr_val.type == 3) { // Char Variable
+                    printf("%c", (char)current->value.expr_val.value.i_val);
                 }
+                last_was_newline = 0; // Assume numbers/exprs don't end in \n
                 break;
         }
         current = current->next;
